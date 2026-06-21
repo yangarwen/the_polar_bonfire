@@ -23,11 +23,11 @@
     <div class="relative z-10 mx-auto flex min-h-full w-full max-w-md flex-col items-center px-5 py-9 text-center">
       <!-- 標題 -->
       <h1 class="title-text">
-        <span class="title-fake">偽</span>寒冰啟示錄
+        <span class="title-fake">極</span>地篝火
       </h1>
-      <p class="mb-2 text-[11px] font-bold tracking-[0.35em] text-cyan-200/70">FAKE WHITEOUT SURVIVAL</p>
+      <p class="mb-2 text-[11px] font-bold tracking-[0.35em] text-cyan-200/70">POLAR BONFIRE</p>
       <p class="mb-6 max-w-xs text-xs leading-relaxed text-slate-300/80">
-        經營肉舖 → 擴張牧場 → 蓋房子 → 蓋塔守城,撐過 30 波
+        狩獵異星生物 → 擴張獵場 → 啟動能量核心 → 蓋塔守備,撐過 30 個寒夜
       </p>
 
       <!-- 線上人數 -->
@@ -79,23 +79,7 @@
         </button>
       </div>
 
-      <!-- 介紹頁 + 粉絲團 -->
-      <a
-        href="https://craig7351.github.io/fake-whiteout-survival/"
-        target="_blank"
-        rel="noopener"
-        class="glass mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-black text-cyan-100 transition hover:bg-white/10 active:scale-95"
-      >
-        <span class="text-lg">📰</span> 遊戲介紹頁
-      </a>
-      <a
-        href="https://www.facebook.com/people/Book-Ai/61584339789020/"
-        target="_blank"
-        rel="noopener"
-        class="mb-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1877f2] py-2.5 text-sm font-black text-white shadow-lg transition hover:bg-[#3b8bf5] active:scale-95"
-      >
-        <span class="text-lg">👍</span> 追蹤 Book Ai 粉絲團
-      </a>
+      <div class="mb-5"></div>
 
       <!-- 全服累計統計 -->
       <div class="grid w-full grid-cols-2 gap-2.5">
@@ -104,12 +88,12 @@
           <div class="stat-label">總共賺到</div>
         </div>
         <div class="glass stat-card">
-          <div class="text-xl font-black text-rose-300">🐄 {{ fmt(totals.cows) }}</div>
-          <div class="stat-label">擊殺牛隻</div>
+          <div class="text-xl font-black text-rose-300">🐔 {{ fmt(totals.cows) }}</div>
+          <div class="stat-label">獵殺生物</div>
         </div>
         <div class="glass stat-card">
-          <div class="text-xl font-black text-lime-300">🧟 {{ fmt(totals.monsters) }}</div>
-          <div class="stat-label">擊殺怪物</div>
+          <div class="text-xl font-black text-lime-300">👽 {{ fmt(totals.monsters) }}</div>
+          <div class="stat-label">擊殺異形</div>
         </div>
         <div class="glass stat-card">
           <div class="text-xl font-black text-sky-300">🎮 {{ fmt(totals.runs) }}</div>
@@ -285,7 +269,7 @@ const totals = ref(getTotals());
 const leaderboard = ref(getLeaderboard(10));
 const online = ref(getOnline());
 /** 直接讀已存的名字（不自動產生預設）→ 新玩家為空、強制輸入才能開始 */
-const name = ref(localStorage.getItem('fake-whiteout:name') ?? '');
+const name = ref(localStorage.getItem('polar-bonfire:name') ?? '');
 const messages = ref(getMessages());
 const msgText = ref('');
 /** 留言串（主留言 + 回覆） */
@@ -394,7 +378,7 @@ function onReply(parentId: number) {
   refreshMessages();
 }
 
-const ADMIN_KEY_LS = 'fake-whiteout:adminKey';
+const ADMIN_KEY_LS = 'polar-bonfire:adminKey';
 async function onDelete(m: Msg) {
   if (!m.id) return;
   let key = localStorage.getItem(ADMIN_KEY_LS) || '';

@@ -84,6 +84,8 @@ function snowMaterial(scene: Scene): StandardMaterial {
   const material = new StandardMaterial('ground-material', scene);
   material.diffuseTexture = tex;
   material.specularColor = Color3.Black();
+  /** 異星藍：冷色調染整片雪原（與大氣/霧一致） */
+  material.diffuseColor = new Color3(0.62, 0.78, 1.0);
   return material;
 }
 

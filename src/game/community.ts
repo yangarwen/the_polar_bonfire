@@ -3,11 +3,11 @@
  * 目前為「離線優先」純本機版（localStorage）；之後可接後端 /api/* 變成全球共享
  *（架構參考 animal-survivors：前端先打 API，失敗回退本機）。
  */
-const TOTALS_KEY = 'fake-whiteout:totals';
-const LB_KEY = 'fake-whiteout:leaderboard';
-const MSG_KEY = 'fake-whiteout:messages';
-const NAME_KEY = 'fake-whiteout:name';
-const DEVICE_KEY = 'fake-whiteout:deviceId';
+const TOTALS_KEY = 'polar-bonfire:totals';
+const LB_KEY = 'polar-bonfire:leaderboard';
+const MSG_KEY = 'polar-bonfire:messages';
+const NAME_KEY = 'polar-bonfire:name';
+const DEVICE_KEY = 'polar-bonfire:deviceId';
 
 /** 後端 API 同源 /api（部署 Cloudflare Pages Functions 後生效；本機 dev 無 /api 則自動回退本機） */
 const BASE = '/api';

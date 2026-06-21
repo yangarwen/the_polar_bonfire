@@ -1,5 +1,5 @@
--- 雪地肉舖後端 D1 結構（排行榜 + 統計 + 在線 + 留言）
--- 套用：wrangler d1 execute fake-whiteout-survival-db --file=./schema.sql --remote
+-- 極地篝火 Polar Bonfire 後端 D1 結構（排行榜 + 統計 + 在線 + 留言）
+-- 套用：wrangler d1 execute polar-bonfire-db --file=./schema.sql --remote
 
 -- 排行榜：每場結算（撐到第幾波、賺多少）
 CREATE TABLE IF NOT EXISTS runs (

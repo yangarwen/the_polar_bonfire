@@ -5,6 +5,7 @@ import {
   Camera,
   HemisphericLight,
   DirectionalLight,
+  PointLight,
   MeshBuilder,
   StandardMaterial,
   Color3,
@@ -92,6 +93,11 @@ export interface GameStats {
   /** 目前點選的塔（升級選單用），未選則 null */
   selectedTower: { type: string; level: number; maxLevel: number; cost: number; maxed: boolean; affordable: boolean; detail: string } | null;
   showDefenseIntro: boolean; // 剛買房子、待玩家確認開啟塔防
+  /** 聖火燃料（0~fuelMax）；夜晚才消耗，歸零即聖火熄滅 */
+  fuel: number;
+  fuelMax: number;
+  /** 玩家是否正受寒（夜晚在聖火取暖圈外移動減速） */
+  cold: boolean;
 }
 
 export interface GameOptions {
@@ -344,11 +350,12 @@ interface Zombie {
 export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {}): GameHandle {
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true });
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.62, 0.72, 0.86, 1);
+  /** 異星冰封星球大氣：深邃的外星藍 */
+  scene.clearColor = new Color4(0.3, 0.45, 0.66, 1);
   scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogColor = new Color3(0.7, 0.78, 0.9);
-  scene.fogStart = 45;
-  scene.fogEnd = 130;
+  scene.fogColor = new Color3(0.4, 0.56, 0.76);
+  scene.fogStart = 42;
+  scene.fogEnd = 125;
 
   const cam = CONFIG.camera;
   const camera = new ArcRotateCamera('camera', cam.alpha, cam.beta, cam.radius, new Vector3(0, 0.8, 2), scene);
@@ -367,11 +374,12 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
 
   const hemi = new HemisphericLight('hemi', new Vector3(0.4, 1, 0.3), scene);
-  hemi.intensity = 1.0;
-  hemi.groundColor = new Color3(0.6, 0.68, 0.8);
+  hemi.intensity = 0.95;
+  hemi.diffuse = new Color3(0.78, 0.88, 1.0);
+  hemi.groundColor = new Color3(0.36, 0.56, 0.78);
   const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.3), scene);
-  sun.intensity = 0.7;
-  sun.diffuse = new Color3(1, 0.97, 0.9);
+  sun.intensity = 0.75;
+  sun.diffuse = new Color3(0.74, 0.86, 1.05);
 
   createTerrain(scene).freezeWorldMatrix(); // 靜態地面
 
@@ -404,22 +412,22 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   void setupFences();
 
   /** ===== 炸藥購買框：站著付滿 💲500 即炸開牧場2 ===== */
-  const dynamiteStation = new BuyStation(scene, CONFIG.dynamite.x, CONFIG.dynamite.z, CONFIG.dynamite.cost, '🧨', '炸藥', '炸開牧場2', '牧場2 已開通');
+  const dynamiteStation = new BuyStation(scene, CONFIG.dynamite.x, CONFIG.dynamite.z, CONFIG.dynamite.cost, '🧨', '能量爆破', '炸開獵場2', '獵場2 已開通');
   let dynamitePaid = 0;
   let pasture2Unlocked = false;
   /** 爆炸時的畫面震動強度（1→0 衰減） */
   let camShake = 0;
 
   /** ===== 牧羊犬購買框：站著付滿 💲300 召喚一隻會自動撿肉的狗 ===== */
-  const dogStation = new BuyStation(scene, CONFIG.dog.x, CONFIG.dog.z, CONFIG.dog.cost, '🐕', '牧羊犬', '自動撿肉回攤位', '已有狗狗幫手');
+  const dogStation = new BuyStation(scene, CONFIG.dog.x, CONFIG.dog.z, CONFIG.dog.cost, '🤖', '機械獵犬', '自動叼獵物回基地', '已有機械獵犬');
   let dogPaid = 0;
   let dogBought = false;
   const dogs: Dog[] = [];
   let dogFleet: AnimatedFleet | null = null;
 
   /** ===== 自動化員工：獵人（自動打怪）、收銀員（自動收錢） ===== */
-  const hunterStation = new BuyStation(scene, CONFIG.hunter.x, CONFIG.hunter.z, CONFIG.hunter.cost, '🏹', '獵人', '自動打牛取肉', '已雇用獵人');
-  const cashierStation = new BuyStation(scene, CONFIG.cashier.x, CONFIG.cashier.z, CONFIG.cashier.cost, '🧑‍💼', '收銀員', '自動收銀台的錢', '已雇用收銀員');
+  const hunterStation = new BuyStation(scene, CONFIG.hunter.x, CONFIG.hunter.z, CONFIG.hunter.cost, '🔫', '拓荒獵手', '自動狩獵取肉', '已召集獵手');
+  const cashierStation = new BuyStation(scene, CONFIG.cashier.x, CONFIG.cashier.z, CONFIG.cashier.cost, '🧑‍💼', '補給官', '自動收取金幣', '已有補給官');
   let hunterPaid = 0;
   let hunterBought = false;
   let cashierPaid = 0;
@@ -429,28 +437,28 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   let cashierFleet: AnimatedFleet | null = null;
 
   /** ===== 房子（牧場2 對面，買下後炸地長出 + 紅磚圍牆院子） ===== */
-  const houseStation = new BuyStation(scene, CONFIG.house.x, CONFIG.house.z, CONFIG.house.cost, '🛡️', '開啟塔防', '殭屍來襲守城', '已開啟塔防', true);
+  const houseStation = new BuyStation(scene, CONFIG.house.x, CONFIG.house.z, CONFIG.house.cost, '🔥', '啟動核心', '異形來襲守核心', '核心已啟動', true);
   let houseBought = false;
 
   /** 靠近功能框時顯示的說明（解決「看不懂地上圖案」） */
   const WEAPON_EFFECT: Record<string, string> = {
     sword: '快速橫掃，一次掃到多隻',
     axe: '攻擊時旋轉，打到周圍全部敵人',
-    smg: '遠距離快速掃射',
+    smg: '遠距離電漿掃射',
   };
   const infoPoints: { x: number; z: number; emoji: string; name: string; effect: string; hint: string }[] = [
-    { x: CONFIG.dynamite.x, z: CONFIG.dynamite.z, emoji: '🧨', name: '炸藥', effect: '炸開牧場2（出現肉×2、血×2 強化怪）', hint: '站著付款購買' },
-    { x: CONFIG.dog.x, z: CONFIG.dog.z, emoji: '🐕', name: '牧羊犬', effect: '自動把地上的肉撿回攤位', hint: '站著付款購買' },
-    { x: CONFIG.hunter.x, z: CONFIG.hunter.z, emoji: '🏹', name: '獵人', effect: '自動進牧場打牛取肉', hint: '站著付款購買' },
-    { x: CONFIG.cashier.x, z: CONFIG.cashier.z, emoji: '🧑‍💼', name: '收銀員', effect: '自動收銀台的錢', hint: '站著付款購買' },
-    { x: CONFIG.house.x, z: CONFIG.house.z, emoji: '🛡️', name: '開啟塔防', effect: '殭屍來襲，蓋塔守住基地圍欄', hint: '身上滿 $5000 自動開啟（不扣錢）' },
+    { x: CONFIG.dynamite.x, z: CONFIG.dynamite.z, emoji: '🧨', name: '能量爆破', effect: '炸開獵場2（出現肉×2、血×2 的強化生物）', hint: '站著付款施放' },
+    { x: CONFIG.dog.x, z: CONFIG.dog.z, emoji: '🤖', name: '機械獵犬', effect: '自動把地上的獵物肉叼回基地', hint: '站著付款啟動' },
+    { x: CONFIG.hunter.x, z: CONFIG.hunter.z, emoji: '🔫', name: '拓荒獵手', effect: '自動進獵場狩獵取肉', hint: '站著付款召集' },
+    { x: CONFIG.cashier.x, z: CONFIG.cashier.z, emoji: '🧑‍💼', name: '補給官', effect: '自動收取金幣', hint: '站著付款雇用' },
+    { x: CONFIG.house.x, z: CONFIG.house.z, emoji: '🔥', name: '啟動核心', effect: '異形來襲，蓋塔守護能量核心', hint: '身上滿 $5000 自動啟動（不扣錢）' },
     ...WEAPONS.map((w) => ({ x: w.x, z: w.z, emoji: w.emoji, name: w.name, effect: WEAPON_EFFECT[w.id] ?? '', hint: '踩上去購買／切換' })),
     ...CONFIG.house.towerPads.map((p) => ({
       x: p.x,
       z: p.z,
       emoji: p.type === 'cannon' ? '💣' : p.type === 'slow' ? '❄️' : '🏹',
-      name: p.type === 'cannon' ? '砲塔' : p.type === 'slow' ? '緩速塔' : '機槍塔',
-      effect: p.type === 'cannon' ? '範圍爆擊，濺射傷害' : p.type === 'slow' ? '丟藍彈讓殭屍減速（無傷害）' : '單體快速射擊',
+      name: p.type === 'cannon' ? '電漿砲' : p.type === 'slow' ? '冰凍力場塔' : '雷射塔',
+      effect: p.type === 'cannon' ? '範圍爆擊，濺射傷害' : p.type === 'slow' ? '釋放冰凍力場讓異形減速（無傷害）' : '單體快速射擊',
       hint: '站著付款蓋塔，點塔可升級',
     })),
   ];
@@ -488,6 +496,12 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   /** 殭屍的進攻目標：原本基地中心 */
   const BASE_CX = 0;
   const BASE_CZ = -2;
+
+  /** ===== 聖火燃料 & 寒冷狀態 ===== */
+  const BONFIRE = CONFIG.bonfire;
+  let fuel = BONFIRE.fuelStart; // 目前燃料
+  let coldSlow = 1; // 寒冷減速倍率（1=正常，夜晚圈外 <1）
+  let fireFlicker = 0; // 火焰閃爍計時
   /** 波次：idle(未開始) / prep(準備) / active(交戰) / lost(失守) / won(通關) */
   let waveState: 'idle' | 'prep' | 'active' | 'lost' | 'won' = 'idle';
   let waveNum = 0;
@@ -809,6 +823,50 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   const muzzleFx = makeBurst('muzzlefx', new Color4(1, 0.95, 0.6, 1), new Color4(1, 0.75, 0.2, 1), 0.12, 0.4, 0.12, 4, true);
   /** 藍色冰霜爆裂（緩速炸彈命中用）：偏青白、向外四散、發光 */
   const frostFx = makeBurst('frostfx', new Color4(0.75, 0.95, 1, 1), new Color4(0.2, 0.55, 1, 1), 0.18, 0.7, 0.55, 7, true);
+
+  /** ===== 聖火篝火：營地中心的長明火（守護目標 + 取暖中心 + 燃料機制視覺） ===== */
+  const fireLogMat = new StandardMaterial('firelog-mat', scene);
+  fireLogMat.diffuseColor = new Color3(0.32, 0.19, 0.1);
+  fireLogMat.specularColor = Color3.Black();
+  const bonfireRoot = new TransformNode('bonfire', scene);
+  bonfireRoot.position.set(BONFIRE.x, 0, BONFIRE.z);
+  for (let i = 0; i < 5; i++) {
+    const log = MeshBuilder.CreateCylinder(`firelog${i}`, { height: 2.2, diameter: 0.34 }, scene);
+    log.material = fireLogMat;
+    log.parent = bonfireRoot;
+    log.position.y = 0.28;
+    log.rotation.z = Math.PI / 2.3;
+    log.rotation.y = (i / 5) * Math.PI * 2;
+    log.isPickable = false;
+  }
+  /** 連續上升的火焰粒子（emitRate / 顏色隨燃料變化） */
+  const bonfireFire = new ParticleSystem('bonfire-fire', 280, scene);
+  bonfireFire.particleTexture = sparkTex;
+  bonfireFire.emitter = new Vector3(BONFIRE.x, 0.5, BONFIRE.z);
+  bonfireFire.minEmitBox = new Vector3(-0.5, 0, -0.5);
+  bonfireFire.maxEmitBox = new Vector3(0.5, 0.3, 0.5);
+  bonfireFire.color1 = new Color4(1, 0.85, 0.32, 1);
+  bonfireFire.color2 = new Color4(1, 0.45, 0.1, 1);
+  bonfireFire.colorDead = new Color4(0.5, 0.12, 0.05, 0);
+  bonfireFire.minSize = 0.5;
+  bonfireFire.maxSize = 1.7;
+  bonfireFire.minLifeTime = 0.4;
+  bonfireFire.maxLifeTime = 0.9;
+  bonfireFire.emitRate = 150;
+  bonfireFire.minEmitPower = 1.6;
+  bonfireFire.maxEmitPower = 3.4;
+  bonfireFire.direction1 = new Vector3(-0.3, 1, -0.3);
+  bonfireFire.direction2 = new Vector3(0.3, 1, 0.3);
+  bonfireFire.gravity = new Vector3(0, 1.6, 0);
+  bonfireFire.blendMode = ParticleSystem.BLENDMODE_ADD;
+  bonfireFire.updateSpeed = 0.02;
+  bonfireFire.start();
+  /** 篝火暖光（intensity 隨燃料/閃爍變化） */
+  const bonfireLight = new PointLight('bonfire-light', new Vector3(BONFIRE.x, 2.2, BONFIRE.z), scene);
+  bonfireLight.diffuse = new Color3(1, 0.62, 0.26);
+  bonfireLight.specular = new Color3(1, 0.5, 0.2);
+  bonfireLight.intensity = 0.85;
+  bonfireLight.range = 26;
   /** 藍色冰霜地痕池：緩速炸彈落點短暫顯示一圈（標示減速範圍）後淡出 */
   const frostPatchMat = new StandardMaterial('frost-patch-mat', scene);
   frostPatchMat.emissiveColor = new Color3(0.4, 0.8, 1);
@@ -953,7 +1011,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   const flowLevel = () => levels['flow'] ?? 0;
   const spawnInterval = () => CONFIG.customer.spawnSec / (1 + flowLevel() * 0.35);
   const maxCustomers = () => Math.min(CONFIG.customer.max, 12 + flowLevel() * 1);
-  const playerSpeed = () => CONFIG.player.speed;
+  const playerSpeed = () => CONFIG.player.speed * coldSlow;
 
   /** 攤位肉/收銀金條的堆疊池上限（拉高到視覺上等同無限制，會一直往上疊） */
   const COUNTER_MAX = 200; // 桌上肉最多 200 層
@@ -1080,9 +1138,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       await Promise.all([
       loadProp(scene, '/models/winter/meat.glb', MEAT_SIZE),
       loadProp(scene, '/models/winter/gold_bar.glb', BAR_SIZE),
-      loadAnimatedFleet(scene, '/models/cow_animated.glb', CONFIG.cow.size),
-      /** 牧場2 怪物：殭屍/海盜 Mako（含 Idle/Walk/Death 動畫） */
-      loadAnimatedFleet(scene, '/models/enemies/Characters_Mako.glb', CONFIG.cow.size),
+      loadAnimatedFleet(scene, '/models/chicken_anim.glb', CONFIG.cow.size),
+      /** 牧場2 強化生物：兔子（血量/掉肉加倍）；含 Idle/Walk/Run/Death 動畫 */
+      loadAnimatedFleet(scene, '/models/bunny.glb', CONFIG.cow.size),
       /** 牧羊犬（含 Idle/Walk/Run 動畫） */
       loadAnimatedFleet(scene, '/models/Characters_GermanShepherd.glb', CONFIG.dog.size),
       /** 員工：獵人(Henry)／收銀員(Anne)，含 Idle/Walk/Sword 動畫 */
@@ -1183,7 +1241,10 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         ent.rootNodes.forEach((n) => (n as TransformNode).getChildMeshes?.().forEach((m) => (m.isPickable = false)));
         const g = ent.animationGroups;
         g.forEach((ag) => ag.stop());
-        const walk = g.find((ag) => /walk(?!slow)/i.test(ag.name)) ?? g.find((ag) => /walk|run/i.test(ag.name));
+        const walk =
+          g.find((ag) => /walk(?!slow)/i.test(ag.name)) ??
+          g.find((ag) => /walk|run/i.test(ag.name)) ??
+          g.find((ag) => /fly|swim|float|hover|move/i.test(ag.name));
         const idle = g.find((ag) => /idle/i.test(ag.name)) ?? g[0];
         const death = g.find((ag) => /death|die/i.test(ag.name));
         const [x, z] = randPasture(region);
@@ -1430,6 +1491,44 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       clampPlayer(player.position);
       player.rotation.y = Math.atan2(wx, wz);
     }
+
+    /** --- 聖火燃料 & 寒冷：僅夜晚(波次交戰中)作用；白天悠閒不耗 --- */
+    {
+      const night = waveState === 'active';
+      const fdx = player.position.x - BONFIRE.x;
+      const fdz = player.position.z - BONFIRE.z;
+      const dist2 = fdx * fdx + fdz * fdz;
+      if (night) {
+        fuel -= BONFIRE.drainPerSec * dt;
+        /** 站在聖火旁且有錢 → 持續花金幣添柴 */
+        if (dist2 < BONFIRE.refuelReach * BONFIRE.refuelReach && fuel < BONFIRE.fuelMax && money > 0) {
+          const add = Math.min(BONFIRE.refuelPerSec * dt, BONFIRE.fuelMax - fuel, money / BONFIRE.refuelCostPerUnit);
+          fuel += add;
+          money -= add * BONFIRE.refuelCostPerUnit;
+        }
+        if (fuel <= 0) {
+          fuel = 0;
+          if (waveState !== 'lost') {
+            waveState = 'lost';
+            floatText.spawn('💀 核心熄滅！', BASE_CX, 9, BASE_CZ, '#ff7070', 2.4);
+            sound.boom();
+          }
+        }
+        /** 寒冷：夜晚聖火取暖圈外移動減速 */
+        coldSlow = dist2 > BONFIRE.warmRadius * BONFIRE.warmRadius ? BONFIRE.coldSlowFactor : 1;
+      } else {
+        coldSlow = 1;
+      }
+      /** 火焰視覺：燃料越低火越弱，並輕微閃爍 */
+      fireFlicker += dt;
+      const ratio = night ? Math.max(0.12, fuel / BONFIRE.fuelMax) : 1;
+      const flick = 0.9 + Math.sin(fireFlicker * 18) * 0.1;
+      bonfireFire.emitRate = 150 * ratio;
+      bonfireFire.minEmitPower = 1.6 * (0.5 + ratio * 0.5);
+      bonfireFire.maxEmitPower = 3.4 * (0.5 + ratio * 0.5);
+      bonfireLight.intensity = (0.4 + 0.6 * ratio) * flick;
+    }
+
     /** 動畫狀態：攻擊優先（裝槍用射擊姿勢），其次走路、idle（僅在狀態改變時切換） */
     if (playerAttackTimer > 0) playerAttackTimer -= dt;
     if (playerModel) {
@@ -2120,13 +2219,13 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         won: waveState === 'won',
         waveLabel:
           waveState === 'won'
-            ? '🏆 通關！撐過 30 波'
+            ? '🏆 救援抵達！撐過 30 個寒夜'
             : waveState === 'lost'
-              ? '💀 基地失守！'
+              ? '💀 核心熄滅！'
               : waveState === 'prep'
-              ? `🛡️ 準備中 ${Math.ceil(Math.max(0, waveTimer))}s（下一波 第${waveNum + 1}波）`
+              ? `☀️ 白晝 ${Math.ceil(Math.max(0, waveTimer))}s（下一個寒夜 第${waveNum + 1}夜）`
               : waveState === 'active'
-                ? `🧟 第 ${waveNum} 波　剩 ${zombies.filter((z) => z.active).length + zombiesToSpawn + bossToSpawn}${bossToSpawn || zombies.some((z) => z.active && z.isBoss) ? ' 👹' : ''}`
+                ? `🌙 第 ${waveNum} 夜　剩 ${zombies.filter((z) => z.active).length + zombiesToSpawn + bossToSpawn}${bossToSpawn || zombies.some((z) => z.active && z.isBoss) ? ' 👹' : ''}`
                 : '',
         selectedTower:
           selectedPad >= 0 && towerPads[selectedPad]?.built
@@ -2143,6 +2242,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
               })()
             : null,
         showDefenseIntro: defenseIntroPending,
+        fuel: Math.round(fuel),
+        fuelMax: BONFIRE.fuelMax,
+        cold: coldSlow < 1,
       });
     }
   });
@@ -3016,14 +3118,14 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         /** 本波清空：給獎勵 */
         const reward = DEF.wave.clearReward + (waveNum - 1) * DEF.wave.rewardPerWave;
         money += reward;
-        floatText.spawn(`第 ${waveNum} 波清空 +$${reward}`, BASE_CX, 7, BASE_CZ, '#7cf08a', 1.6);
+        floatText.spawn(`熬過第 ${waveNum} 夜 +$${reward}`, BASE_CX, 7, BASE_CZ, '#7cf08a', 1.6);// 夜間倖存獎勵
         if (waveNum >= 10) achieve('wave10');
         if (waveNum >= 20) achieve('wave20');
         if (waveNum >= DEF.winWave) {
           /** 通關！ */
           achieve('win');
           waveState = 'won';
-          floatText.spawn('🏆 通關！撐過 30 波！', BASE_CX, 9, BASE_CZ, '#ffe066', 2.4);
+          floatText.spawn('🏆 救援抵達！撐過 30 個寒夜！', BASE_CX, 9, BASE_CZ, '#ffe066', 2.4);
           sound.upgrade();
         } else {
           waveState = 'prep';

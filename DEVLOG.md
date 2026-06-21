@@ -1,6 +1,6 @@
 # 開發筆記 DEVLOG
 
-記錄重要變更與「踩雷點」(gotchas),方便日後維護。線上版:https://fake-whiteout-survival.pages.dev
+記錄重要變更與「踩雷點」(gotchas),方便日後維護。線上版:https://polar-bonfire.pages.dev
 
 ---
 
@@ -43,9 +43,8 @@
 
 ## 🏠 首頁 / 社群
 
-- 改名 **偽寒冰啟示錄**,冰封深色 UI(極光 + 飄雪 + 毛玻璃)。
+- 命名 **極地篝火 Polar Bonfire**,冰封深色 UI(極光 + 飄雪 + 毛玻璃)。
 - 排行榜/成就/留言板做成按鈕→彈窗;留言板**回覆功能**、名字在板內輸入;版主刪除碼提示「8bytes生日」。
-- 粉絲團按鈕(首頁 + 通關/失敗彈窗)。
 
 ## ☁️ 後端
 
@@ -55,6 +54,6 @@
 
 ```bash
 npm run build
-npx wrangler pages deploy dist --project-name=fake-whiteout-survival --branch=main --commit-dirty=true
+npx wrangler pages deploy dist --project-name=polar-bonfire --branch=main --commit-dirty=true
 ```
 改完一律先 `npx vue-tsc --noEmit` 型別檢查再 build。

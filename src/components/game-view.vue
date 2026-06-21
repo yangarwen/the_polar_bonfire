@@ -99,7 +99,7 @@
       v-if="showHint"
       class="pointer-events-none absolute left-1/2 top-16 z-10 -translate-x-1/2 rounded-xl bg-slate-950/60 px-4 py-2 text-center text-xs text-cyan-50/90 ring-1 ring-cyan-200/15 backdrop-blur-md sm:text-sm"
     >
-      基地內踩 🪓🗡️🔫 換武器 → 進 🐄牧場 打牛 → 撿肉走回 🥩販售 擺攤 → 顧客買單後到 💲收銀 收錢 → 踩升級墊變強
+      營地內踩 🪓🗡️🔫 換武器 → 進 🐔獵場 狩獵 → 叼肉走回 🥩基地 陳列 → 拓荒者買單後到 💲錢箱 收金幣 → 踩升級墊變強
     </div>
 
     <!-- 點塔升級選單 -->
@@ -114,7 +114,7 @@
         ✕
       </button>
       <div class="text-lg font-black">
-        {{ stats.selectedTower.type === 'cannon' ? '💣 砲塔' : stats.selectedTower.type === 'slow' ? '❄️ 緩速塔' : '🏹 機槍塔' }}
+        {{ stats.selectedTower.type === 'cannon' ? '💣 電漿砲' : stats.selectedTower.type === 'slow' ? '❄️ 冰凍力場塔' : '🏹 雷射塔' }}
         <span class="ml-1 text-cyan-300">Lv.{{ stats.selectedTower.level }}/{{ stats.selectedTower.maxLevel }}</span>
       </div>
       <div class="mt-1 text-sm font-black text-cyan-200">目前 {{ stats.selectedTower.detail }}</div>
@@ -136,22 +136,22 @@
     <!-- 塔防開啟說明（買房後跳出） -->
     <div v-if="stats.showDefenseIntro" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-5 backdrop-blur-md">
       <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 p-5 text-center text-slate-100 shadow-2xl ring-1 ring-cyan-300/30">
-        <div class="mb-2 text-4xl">🏰🛡️</div>
-        <div class="mb-1 text-xl font-black text-cyan-200">塔防模式開啟!</div>
+        <div class="mb-2 text-4xl">🔥❄️</div>
+        <div class="mb-1 text-xl font-black text-cyan-200">能量核心已啟動!</div>
         <p class="mb-4 text-sm leading-relaxed text-slate-300">
-          殭屍即將來襲!在院子四周蓋 🏹箭塔 / 💣砲塔 / ❄️緩速塔 攔截,<br />
-          別讓 <span class="font-black text-rose-300">10 隻</span> 殭屍攻入基地圍欄,<br />
-          撐過 <span class="font-black text-amber-300">30 波</span> 即可破關!
+          酷寒降臨,異形即將來襲!在營地四周蓋 🏹雷射塔 / 💣電漿砲 / ❄️冰凍力場塔 攔截,<br />
+          別讓 <span class="font-black text-rose-300">10 隻</span> 異形突破核心防線,<br />
+          撐過 <span class="font-black text-amber-300">30 個寒夜</span> 即可等到救援!
         </p>
         <div class="mb-4 rounded-xl bg-cyan-500/10 px-3 py-2 text-sm font-bold text-cyan-200 ring-1 ring-cyan-300/20">
-          ⏱️ 按下確認後 <span class="text-amber-300">1 分鐘</span> 迎來第一波
+          ⏱️ 按下確認後 <span class="text-amber-300">1 分鐘</span> 迎來第一個寒夜
         </div>
         <button
           v-if="stats.money >= 5000"
           class="w-full rounded-xl bg-cyan-500 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-400 active:scale-95"
           @click="onStartDefense"
         >
-          確認,開始備戰!
+          確認,啟動核心!
         </button>
         <button
           v-else
@@ -168,19 +168,19 @@
       <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 p-6 text-center text-slate-100 shadow-2xl ring-1" :class="stats.won ? 'ring-amber-300/40' : 'ring-rose-400/40'">
         <div class="mb-2 text-5xl">{{ stats.won ? '🏆' : '💀' }}</div>
         <div class="mb-1 text-2xl font-black" :class="stats.won ? 'text-amber-300' : 'text-rose-300'">
-          {{ stats.won ? '通關!' : '基地失守!' }}
+          {{ stats.won ? '等到救援!' : '核心熄滅!' }}
         </div>
         <p class="mb-3 text-sm text-slate-300">
-          {{ stats.won ? '你撐過了 30 波,成功守住基地!' : '10 隻殭屍攻入了基地圍欄…' }}
+          {{ stats.won ? '你撐過了 30 個寒夜,核心不滅,等到了救援!' : '10 隻異形突破了核心防線…' }}
         </p>
         <div class="mb-5 flex justify-center gap-3">
           <div class="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10">
             <div class="text-2xl font-black text-cyan-300">{{ stats.wave }}</div>
-            <div class="text-[11px] text-slate-400">撐到第幾波</div>
+            <div class="text-[11px] text-slate-400">撐到第幾夜</div>
           </div>
           <div class="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10">
             <div class="text-2xl font-black text-rose-300">{{ stats.breaches }}/{{ stats.breachMax }}</div>
-            <div class="text-[11px] text-slate-400">攻入基地</div>
+            <div class="text-[11px] text-slate-400">突破防線</div>
           </div>
         </div>
         <button
@@ -189,14 +189,6 @@
         >
           再玩一次
         </button>
-        <a
-          href="https://www.facebook.com/people/Book-Ai/61584339789020/"
-          target="_blank"
-          rel="noopener"
-          class="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1877f2] py-3 text-base font-black text-white shadow-lg transition hover:bg-[#3b8bf5] active:scale-95"
-        >
-          <span class="text-xl">👍</span> 追蹤 Book Ai 粉絲團
-        </a>
       </div>
     </div>
   </div>
@@ -233,15 +225,18 @@ const stats = reactive<GameStats>({
   waveLabel: '',
   selectedTower: null,
   showDefenseIntro: false,
+  fuel: 100,
+  fuelMax: 100,
+  cold: false,
 });
 
 let game: GameHandle | undefined;
 
-const MUTE_KEY = 'fake-whiteout:muted';
+const MUTE_KEY = 'polar-bonfire:muted';
 const muted = ref(localStorage.getItem(MUTE_KEY) === '1');
 
 /** 畫質（算繪解析度倍率）：1=高畫質、越大越流暢/越糊；玩家自選並記住 */
-const QUALITY_KEY = 'fake-whiteout:quality';
+const QUALITY_KEY = 'polar-bonfire:quality';
 const quality = ref(Number(localStorage.getItem(QUALITY_KEY) ?? '1') || 1);
 function onQuality() {
   game?.setHardwareScaling(quality.value);

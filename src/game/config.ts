@@ -1,4 +1,4 @@
-/** 雪地肉舖經營：可調參數 */
+/** 異星冰封殖民地：可調參數 */
 export const CONFIG = {
   /** 店面圍場半徑（柵欄圍出的營業範圍） */
   arenaHalf: 12,
@@ -112,6 +112,29 @@ export const CONFIG = {
       { x: 30, z: -11, type: 'slow' as const },
       { x: 30, z: 7, type: 'slow' as const },
     ],
+  },
+
+  /** 能量核心：營地中心的火種/核心（守護目標）。白天悠閒不耗;入夜(波次中)才消耗能量 */
+  bonfire: {
+    /** 位置＝營地中心（與 BASE_CX/CZ 一致） */
+    x: 0,
+    z: -2,
+    /** 燃料上限 */
+    fuelMax: 100,
+    /** 開局燃料 */
+    fuelStart: 100,
+    /** 夜晚(波次進行中)每秒消耗的燃料 */
+    drainPerSec: 3.5,
+    /** 站在聖火旁每秒可添加的燃料 */
+    refuelPerSec: 22,
+    /** 每點燃料花費的金幣 */
+    refuelCostPerUnit: 5,
+    /** 走到多近算「在聖火旁」可添柴 */
+    refuelReach: 4.5,
+    /** 取暖半徑：夜晚此半徑外會受寒減速 */
+    warmRadius: 10,
+    /** 夜晚聖火圈外的移動速度倍率（受寒） */
+    coldSlowFactor: 0.55,
   },
 
   /** 牛 */
@@ -329,7 +352,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     id: 'smg',
-    name: '衝鋒槍',
+    name: '電漿槍',
     emoji: '🔫',
     model: '/models/weapons/smg.glb',
     size: 0.62,

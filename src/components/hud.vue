@@ -51,10 +51,27 @@
       </div>
       <span class="text-xs font-black text-rose-200">{{ stats.breaches }}/{{ stats.breachMax }}</span>
     </div>
+    <!-- 聖火燃料條：夜晚才消耗，站火旁用金幣添柴 -->
+    <div class="flex items-center gap-2">
+      <span class="text-lg">🔥</span>
+      <div class="h-3.5 w-44 overflow-hidden rounded-full bg-slate-900/55 ring-1 ring-amber-200/20 sm:w-56">
+        <div
+          class="h-full rounded-full transition-[width] duration-150"
+          :class="fuelRatio > 0.5 ? 'bg-amber-400' : fuelRatio > 0.25 ? 'bg-orange-500' : 'bg-rose-500'"
+          :style="{ width: `${fuelRatio * 100}%` }"
+        />
+      </div>
+      <span class="text-xs font-black text-amber-200">{{ stats.fuel }}</span>
+    </div>
+    <div v-if="stats.cold" class="rounded-lg bg-sky-500/20 px-2.5 py-1 text-xs font-black text-sky-200 ring-1 ring-sky-300/30">
+      🥶 受寒減速・回核心旁取暖
+    </div>
   </div>
 
   <!-- 防線告急：攻入達 8/10 起，畫面邊緣脈動泛紅警告 -->
   <div v-if="stats.defenseActive && breachRatio >= 0.8" class="breach-warn pointer-events-none absolute inset-0 z-30" />
+  <!-- 受寒：畫面邊緣泛藍 -->
+  <div v-if="stats.cold" class="cold-warn pointer-events-none absolute inset-0 z-20" />
 
   <!-- 升級提示（站上升級地墊時，加大字級給手機看） -->
   <div
@@ -93,6 +110,7 @@ import type { GameStats } from '../game/game';
 
 const props = defineProps<{ stats: GameStats }>();
 const breachRatio = computed(() => (props.stats.breachMax > 0 ? Math.max(0, Math.min(1, props.stats.breaches / props.stats.breachMax)) : 0));
+const fuelRatio = computed(() => (props.stats.fuelMax > 0 ? Math.max(0, Math.min(1, props.stats.fuel / props.stats.fuelMax)) : 0));
 /** 避開瀏海/動態島 */
 const safeTop = { top: 'max(0.75rem, env(safe-area-inset-top))' };
 </script>
@@ -101,6 +119,10 @@ const safeTop = { top: 'max(0.75rem, env(safe-area-inset-top))' };
 .breach-warn {
   background: radial-gradient(ellipse at center, transparent 45%, rgba(225, 25, 25, 0.85) 100%);
   animation: breachpulse 0.85s ease-in-out infinite;
+}
+.cold-warn {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(90, 160, 235, 0.55) 100%);
+  animation: breachpulse 1.6s ease-in-out infinite;
 }
 @keyframes breachpulse {
   0%,

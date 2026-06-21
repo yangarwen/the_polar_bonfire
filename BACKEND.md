@@ -1,6 +1,6 @@
 # 後端：全球排行榜 / 統計 / 留言板 / 線上人數
 
-純前端可正常運作（無 `/api` 時自動回退 localStorage）。要啟用「全球共享」需建立 Cloudflare D1 並部署 Pages（網址：`fake-whiteout-survival.pages.dev`）。
+純前端可正常運作（無 `/api` 時自動回退 localStorage）。要啟用「全球共享」需建立 Cloudflare D1 並部署 Pages（網址：`polar-bonfire.pages.dev`）。
 
 ## 架構（同 animal-survivors）
 
@@ -26,19 +26,19 @@
 npx wrangler login
 
 # 2) 建立 D1 資料庫（記下回傳的 database_id）
-npx wrangler d1 create fake-whiteout-survival-db
+npx wrangler d1 create polar-bonfire-db
 
 # 3) 把 database_id 填入 wrangler.jsonc 的 d1_databases[0].database_id（取代 REPLACE_WITH_DATABASE_ID）
 
 # 4) 建表（遠端正式庫）
-npx wrangler d1 execute fake-whiteout-survival-db --file=./schema.sql --remote
+npx wrangler d1 execute polar-bonfire-db --file=./schema.sql --remote
 
 # 5) 建置 + 部署到 Pages
 npm run build
-npx wrangler pages deploy dist --project-name=fake-whiteout-survival
+npx wrangler pages deploy dist --project-name=polar-bonfire
 ```
 
-> 若用 Cloudflare 儀表板連 Git 自動部署：到 Pages 專案 → Settings → Functions → D1 bindings，把 `DB` 綁到 `fake-whiteout-survival-db`。
+> 若用 Cloudflare 儀表板連 Git 自動部署：到 Pages 專案 → Settings → Functions → D1 bindings，把 `DB` 綁到 `polar-bonfire-db`。
 
 ## 安全性加固（已上線）
 
@@ -56,7 +56,7 @@ npx wrangler pages deploy dist --project-name=fake-whiteout-survival
 
 ```bash
 # 設定（會提示或可用管線輸入）；存為 Pages production 環境的 Secret
-echo "你的新刪除碼" | npx wrangler pages secret put ADMIN_KEY --project-name=fake-whiteout-survival
+echo "你的新刪除碼" | npx wrangler pages secret put ADMIN_KEY --project-name=polar-bonfire
 ```
 
 > 進一步防護（選用，dashboard 設定）：Cloudflare **WAF Rate Limiting Rule** 或 **Turnstile** 人機驗證，可在不改碼的情況下再擋大量腳本流量。
@@ -65,7 +65,7 @@ echo "你的新刪除碼" | npx wrangler pages secret put ADMIN_KEY --project-na
 
 ```bash
 npm run build
-npx wrangler d1 execute fake-whiteout-survival-db --file=./schema.sql --local
+npx wrangler d1 execute polar-bonfire-db --file=./schema.sql --local
 npx wrangler pages dev dist     # 提供 /api/* 與本機 D1
 ```
 

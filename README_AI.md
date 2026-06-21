@@ -1,4 +1,4 @@
-# 雪地肉舖 Fake Whiteout Survival — 專案分析（AI 整理）
+# 極地篝火 Polar Bonfire — 專案分析（AI 整理）
 
 > 本文件由 AI 閱讀整個程式碼後整理，供開發者快速理解架構與現況。
 
