@@ -276,9 +276,9 @@ export interface UpgradeDef {
 export const UPGRADES: UpgradeDef[] = [
   {
     id: 'flow',
-    name: '招攬客流',
+    name: 'Attract Customers',
     emoji: '🚪',
-    desc: '顧客來得更快、更多',
+    desc: 'Customers arrive faster and in greater numbers',
     x: -9,
     z: 9,
     maxLevel: 20,
@@ -319,7 +319,7 @@ export interface WeaponDef {
 export const WEAPONS: WeaponDef[] = [
   {
     id: 'axe',
-    name: '迴旋斧',
+    name: 'Whirl Axe',
     emoji: '🪓',
     model: '/models/weapons/axe.glb',
     size: 1.0,
@@ -336,7 +336,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     id: 'sword',
-    name: '大砍刀',
+    name: 'Cleaver',
     emoji: '🗡️',
     model: '/models/weapons/sword.glb',
     size: 1.05,
@@ -352,7 +352,7 @@ export const WEAPONS: WeaponDef[] = [
   },
   {
     id: 'smg',
-    name: '電漿槍',
+    name: 'Plasma Gun',
     emoji: '🔫',
     model: '/models/weapons/smg.glb',
     size: 0.62,

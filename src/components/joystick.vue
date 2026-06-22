@@ -43,7 +43,7 @@ function update(clientX: number, clientY: number) {
   }
   offset.value = { x: dx, y: dy };
 
-  /** 螢幕向上 = 世界 +z（遠離相機）；螢幕向右 = 世界 +x */
+  /** Screen up = world +z (away from camera); screen right = world +x */
   emit('move', { x: dx / radius, z: -dy / radius });
 }
 
@@ -76,7 +76,7 @@ function onUp() {
   height: 42%;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.55);
-  /** 觸控穿透到外圈 pad（pad 用 touch-action:manipulation 停用雙擊放大） */
+  /** Let touches pass through to the outer pad (pad uses touch-action:manipulation to disable double-tap zoom) */
   pointer-events: none;
   touch-action: manipulation;
 }

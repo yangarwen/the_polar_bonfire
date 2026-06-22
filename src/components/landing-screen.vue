@@ -1,6 +1,6 @@
 <template>
   <div class="landing relative h-full w-full overflow-y-auto overflow-x-hidden">
-    <!-- 背景：冰藍漸層 + 極光光暈 + 飄雪 -->
+    <!-- Background: icy-blue gradient + aurora glow + falling snow -->
     <div class="bg-base fixed inset-0" />
     <div class="bg-aurora fixed inset-0" />
     <div class="pointer-events-none fixed inset-0 overflow-hidden">
@@ -21,118 +21,118 @@
     </div>
 
     <div class="relative z-10 mx-auto flex min-h-full w-full max-w-md flex-col items-center px-5 py-9 text-center">
-      <!-- 標題 -->
+      <!-- Title -->
       <h1 class="title-text">
-        <span class="title-fake">極</span>地篝火
+        <span class="title-fake">Polar</span> Bonfire
       </h1>
       <p class="mb-2 text-[11px] font-bold tracking-[0.35em] text-cyan-200/70">POLAR BONFIRE</p>
       <p class="mb-6 max-w-xs text-xs leading-relaxed text-slate-300/80">
-        狩獵異星生物 → 擴張獵場 → 啟動能量核心 → 蓋塔守備,撐過 30 個寒夜
+        Hunt alien creatures → expand hunting grounds → activate the energy core → build towers and survive 30 cold nights
       </p>
 
-      <!-- 線上人數 -->
+      <!-- Online count -->
       <div class="mb-4 flex w-full items-center justify-center text-xs">
         <span class="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-bold text-emerald-200">
           <span class="relative flex h-2 w-2">
             <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
           </span>
-          線上 {{ online }} 人
+          {{ online }} online
         </span>
       </div>
 
-      <!-- 玩家姓名（必填才能開始） -->
+      <!-- Player name (required before starting) -->
       <input
         v-model="name"
         @change="onName"
         maxlength="12"
-        placeholder="輸入你的名字"
+        placeholder="Enter your name"
         class="glass mb-2 w-full rounded-xl px-4 py-2.5 text-center text-base font-bold text-slate-100 outline-none placeholder:text-slate-400"
       />
 
-      <!-- 主 CTA -->
+      <!-- Main CTA -->
       <button
         class="play-btn mb-2 w-full"
         :class="{ 'cursor-not-allowed opacity-50': !canStart }"
         :disabled="!canStart"
         @click="onStart"
       >
-        <span class="relative z-10">▶ 立即遊玩</span>
+        <span class="relative z-10">▶ Play now</span>
       </button>
-      <p v-if="!canStart" class="mb-3 text-xs font-bold text-rose-300/90">請先輸入你的名字才能開始</p>
+      <p v-if="!canStart" class="mb-3 text-xs font-bold text-rose-300/90">Enter your name first to start</p>
       <div v-else class="mb-3" />
 
-      <!-- 功能按鈕：排行榜 / 成就 / 留言板 / 線上人數 -->
+      <!-- Menu buttons: Leaderboard / Achievements / Messages / Online -->
       <div class="mb-5 grid w-full grid-cols-2 gap-2.5">
         <button class="menu-btn" @click="open('leaderboard')">
-          <span class="text-2xl drop-shadow">🏆</span><span>排行榜</span>
+          <span class="text-2xl drop-shadow">🏆</span><span>Leaderboard</span>
         </button>
         <button class="menu-btn" @click="open('achievements')">
           <span class="text-2xl drop-shadow">🏅</span>
-          <span>成就 <span class="text-[10px] font-bold text-cyan-300/70">{{ unlockedCount }}/{{ achievements.length }}</span></span>
+          <span>Achievements <span class="text-[10px] font-bold text-cyan-300/70">{{ unlockedCount }}/{{ achievements.length }}</span></span>
         </button>
         <button class="menu-btn" @click="open('messages')">
-          <span class="text-2xl drop-shadow">💬</span><span>留言板</span>
+          <span class="text-2xl drop-shadow">💬</span><span>Messages</span>
         </button>
         <button class="menu-btn" @click="open('online')">
-          <span class="text-2xl drop-shadow">📈</span><span>線上人數</span>
+          <span class="text-2xl drop-shadow">📈</span><span>Online</span>
         </button>
       </div>
 
       <div class="mb-5"></div>
 
-      <!-- 全服累計統計 -->
+      <!-- Global cumulative stats -->
       <div class="grid w-full grid-cols-2 gap-2.5">
         <div class="glass stat-card">
           <div class="text-xl font-black text-amber-300">💰 {{ fmt(totals.money) }}</div>
-          <div class="stat-label">總共賺到</div>
+          <div class="stat-label">Total earned</div>
         </div>
         <div class="glass stat-card">
           <div class="text-xl font-black text-rose-300">🐔 {{ fmt(totals.cows) }}</div>
-          <div class="stat-label">獵殺生物</div>
+          <div class="stat-label">Creatures hunted</div>
         </div>
         <div class="glass stat-card">
           <div class="text-xl font-black text-lime-300">👽 {{ fmt(totals.monsters) }}</div>
-          <div class="stat-label">擊殺異形</div>
+          <div class="stat-label">Aliens killed</div>
         </div>
         <div class="glass stat-card">
           <div class="text-xl font-black text-sky-300">🎮 {{ fmt(totals.runs) }}</div>
-          <div class="stat-label">遊玩場次</div>
+          <div class="stat-label">Games played</div>
         </div>
       </div>
     </div>
 
-    <!-- ===== 彈窗 ===== -->
+    <!-- ===== Modal ===== -->
     <div
       v-if="panel"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md"
       @click.self="close"
     >
       <div class="modal-card flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden">
-        <!-- 標題列 -->
+        <!-- Title bar -->
         <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div class="text-base font-black text-slate-100">{{ panelTitle }}</div>
           <button class="rounded-full px-2 py-0.5 text-xl text-slate-400 transition hover:bg-white/10 hover:text-slate-100" @click="close">✕</button>
         </div>
 
-        <!-- 內容 -->
+        <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 text-left">
-          <!-- 排行榜 -->
+          <!-- Leaderboard -->
           <template v-if="panel === 'leaderboard'">
             <div v-if="leaderboard.length" class="flex flex-col gap-1.5">
               <div v-for="(r, i) in leaderboard" :key="i" class="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1.5 text-sm">
                 <span class="w-6 text-center font-black" :class="i < 3 ? 'text-amber-300' : 'text-slate-500'">{{ i + 1 }}</span>
                 <span class="flex-1 truncate font-bold text-slate-200">{{ r.name }} <span v-if="r.won">🏆</span></span>
-                <span class="font-black text-rose-300">第 {{ r.wave }} 波</span>
+                <span class="font-black text-rose-300">Wave {{ r.wave }}</span>
                 <span class="w-16 text-right text-amber-300">💰{{ fmt(r.money) }}</span>
               </div>
             </div>
-            <div v-else class="py-6 text-center text-sm text-slate-500">還沒有紀錄,快去玩第一場!</div>
+            <div v-else class="py-6 text-center text-sm text-slate-500">No records yet — go play the first game!</div>
           </template>
 
-          <!-- 最近 7 天每日上線人數（折線圖） -->
+          <!-- Daily online peaks over the last 7 days (line chart) -->
           <template v-else-if="panel === 'online'">
-            <div class="mb-3 text-center text-sm text-cyan-200">目前線上 <b class="text-emerald-300">{{ online }}</b> 人 · 最近 7 天每日尖峰</div>
+            <div class="mb-3 text-center text-sm text-cyan-200"><b class="text-emerald-300">{{ online }}</b> online now · daily peaks over the last 7 days</div>
             <div v-if="chart.pts.length" class="rounded-lg bg-white/5 p-3">
               <svg :viewBox="`0 0 ${chart.W} ${chart.H}`" class="w-full">
                 <polyline :points="chart.poly" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
@@ -143,10 +143,10 @@
                 </g>
               </svg>
             </div>
-            <div v-else class="py-6 text-center text-sm text-slate-500">還沒有歷史資料,等大家上線後就會逐日記錄</div>
+            <div v-else class="py-6 text-center text-sm text-slate-500">No history yet — daily records start once players come online</div>
           </template>
 
-          <!-- 成就 -->
+          <!-- Achievements -->
           <template v-else-if="panel === 'achievements'">
             <div class="grid grid-cols-2 gap-1.5">
               <div
@@ -164,62 +164,62 @@
             </div>
           </template>
 
-          <!-- 留言板 -->
+          <!-- Messages -->
           <template v-else-if="panel === 'messages'">
             <div class="mb-3 flex flex-col gap-1">
               <input
                 v-model="name"
                 @change="onName"
                 maxlength="12"
-                placeholder="你的名字"
+                placeholder="Your name"
                 class="w-full rounded-lg bg-white/10 px-2 py-1.5 text-xs text-slate-100 outline-none ring-1 ring-white/15 placeholder:text-slate-500"
               />
               <div class="flex gap-1">
                 <input
                   v-model="msgText"
                   maxlength="120"
-                  placeholder="留個言…"
+                  placeholder="Leave a message…"
                   class="min-w-0 flex-1 rounded-lg bg-white/10 px-2 py-1.5 text-xs text-slate-100 outline-none ring-1 ring-white/15 placeholder:text-slate-500"
                   @keydown.enter="onPost"
                 />
-                <button class="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-cyan-400 active:scale-95" @click="onPost">送出</button>
+                <button class="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-black text-white transition hover:bg-cyan-400 active:scale-95" @click="onPost">Send</button>
               </div>
             </div>
             <div v-if="threads.length" class="flex flex-col gap-2">
               <div v-for="m in threads" :key="m.id ?? m.at" class="rounded-lg bg-white/5 px-2 py-1.5 text-xs">
-                <!-- 主留言 -->
+                <!-- Top-level message -->
                 <div class="flex items-start gap-1">
                   <div class="min-w-0 flex-1">
                     <span class="font-black text-cyan-300">{{ m.name }}</span>
                     <span class="ml-1 break-words text-slate-200">{{ m.text }}</span>
                   </div>
-                  <button v-if="m.id" class="shrink-0 px-1 text-[11px] font-bold text-slate-400 hover:text-cyan-300" @click="toggleReply(m.id)">回覆</button>
-                  <button v-if="m.id" class="shrink-0 px-1 text-slate-500 hover:text-rose-400" title="版主刪除" @click="onDelete(m)">✕</button>
+                  <button v-if="m.id" class="shrink-0 px-1 text-[11px] font-bold text-slate-400 hover:text-cyan-300" @click="toggleReply(m.id)">Reply</button>
+                  <button v-if="m.id" class="shrink-0 px-1 text-slate-500 hover:text-rose-400" title="Moderator delete" @click="onDelete(m)">✕</button>
                 </div>
-                <!-- 回覆們 -->
+                <!-- Replies -->
                 <div v-if="m.replies && m.replies.length" class="mt-1 flex flex-col gap-1 border-l-2 border-cyan-300/20 pl-2">
                   <div v-for="r in m.replies" :key="r.id ?? r.at" class="flex items-start gap-1">
                     <div class="min-w-0 flex-1">
                       <span class="font-black text-sky-300">↳ {{ r.name }}</span>
                       <span class="ml-1 break-words text-slate-300">{{ r.text }}</span>
                     </div>
-                    <button v-if="r.id" class="shrink-0 px-1 text-slate-500 hover:text-rose-400" title="版主刪除" @click="onDelete(r)">✕</button>
+                    <button v-if="r.id" class="shrink-0 px-1 text-slate-500 hover:text-rose-400" title="Moderator delete" @click="onDelete(r)">✕</button>
                   </div>
                 </div>
-                <!-- 回覆輸入 -->
+                <!-- Reply input -->
                 <div v-if="replyTo === m.id" class="mt-1.5 flex gap-1">
                   <input
                     v-model="replyText"
                     maxlength="120"
-                    placeholder="回覆…"
+                    placeholder="Reply…"
                     class="min-w-0 flex-1 rounded-lg bg-white/10 px-2 py-1.5 text-xs text-slate-100 outline-none ring-1 ring-white/15 placeholder:text-slate-500"
                     @keydown.enter="m.id != null && onReply(m.id)"
                   />
-                  <button class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-black text-white active:scale-95" @click="m.id != null && onReply(m.id)">送出</button>
+                  <button class="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-black text-white active:scale-95" @click="m.id != null && onReply(m.id)">Send</button>
                 </div>
               </div>
             </div>
-            <div v-else class="py-6 text-center text-sm text-slate-500">還沒有留言,搶頭香!</div>
+            <div v-else class="py-6 text-center text-sm text-slate-500">No messages yet — be the first!</div>
           </template>
         </div>
       </div>
@@ -254,7 +254,7 @@ const unlocked = loadAchievements();
 const achievements = ACHIEVEMENTS.map((a) => ({ ...a, got: unlocked.has(a.id) }));
 const unlockedCount = computed(() => achievements.filter((a) => a.got).length);
 
-/** 飄雪：一次性隨機產生，純 CSS 動畫 */
+/** Snowfall: generated once at random, pure CSS animation */
 const flakes = Array.from({ length: 32 }, () => ({
   left: Math.random() * 100,
   size: 2 + Math.random() * 4,
@@ -264,33 +264,33 @@ const flakes = Array.from({ length: 32 }, () => ({
   op: 0.25 + Math.random() * 0.5,
 }));
 
-/** 先顯示本機資料,再用後端(若有部署)覆蓋 */
+/** Show local data first, then overwrite with backend data (if deployed) */
 const totals = ref(getTotals());
 const leaderboard = ref(getLeaderboard(10));
 const online = ref(getOnline());
-/** 直接讀已存的名字（不自動產生預設）→ 新玩家為空、強制輸入才能開始 */
+/** Read the saved name directly (no auto-generated default) → new players are blank and must type a name to start */
 const name = ref(localStorage.getItem('polar-bonfire:name') ?? '');
 const messages = ref(getMessages());
 const msgText = ref('');
-/** 留言串（主留言 + 回覆） */
+/** Message threads (top-level message + replies) */
 const threads = computed(() => threadMessages(messages.value));
-/** 目前展開回覆輸入的留言 id */
+/** Id of the message whose reply input is currently expanded */
 const replyTo = ref<number | null>(null);
 const replyText = ref('');
 let hbTimer: number | undefined;
 
-/** 彈窗：null=關閉 */
+/** Modal: null = closed */
 type Panel = 'leaderboard' | 'achievements' | 'messages' | 'online';
 const panel = ref<Panel | null>(null);
 const onlineHistory = ref<{ at: number; peak: number }[]>([]);
 const panelTitle = computed(() =>
   panel.value === 'leaderboard'
-    ? '🏆 排行榜（撐最久）'
+    ? '🏆 Leaderboard (longest survival)'
     : panel.value === 'achievements'
-      ? '🏅 成就'
+      ? '🏅 Achievements'
       : panel.value === 'online'
-        ? '📈 最近 7 天上線人數'
-        : '💬 留言板',
+        ? '📈 Online over the last 7 days'
+        : '💬 Messages',
 );
 function open(p: Panel) {
   panel.value = p;
@@ -324,7 +324,7 @@ onUnmounted(() => {
 function fmt(n: number) {
   return n.toLocaleString();
 }
-/** 最近 7 天每日上線：折線圖座標 */
+/** Daily online over the last 7 days: line-chart coordinates */
 function dayLabel(at: number): string {
   const d = new Date(at);
   return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -345,9 +345,9 @@ const chart = computed(() => {
   return { W, H, max, pts, poly: pts.map((p) => `${p.x},${p.y}`).join(' ') };
 });
 function onName() {
-  setName(name.value); // 只儲存，不回填預設（讓欄位可為空以擋住開始）
+  setName(name.value); // store only, don't backfill a default (so the field can stay empty to block start)
 }
-/** 必填姓名才能開始 */
+/** Name is required before starting */
 const canStart = computed(() => name.value.trim().length > 0);
 function onStart() {
   if (!canStart.value) return;
@@ -383,7 +383,7 @@ async function onDelete(m: Msg) {
   if (!m.id) return;
   let key = localStorage.getItem(ADMIN_KEY_LS) || '';
   if (!key) {
-    key = window.prompt('輸入版主刪除碼（提示：8bytes生日）：') || '';
+    key = window.prompt('Enter the moderator delete code:') || '';
     if (!key) return;
   }
   const ok = await deleteMessage(m.id, key);
@@ -393,17 +393,17 @@ async function onDelete(m: Msg) {
     if (fresh) messages.value = fresh;
   } else {
     localStorage.removeItem(ADMIN_KEY_LS);
-    window.alert('刪除失敗（刪除碼錯誤或無權限）');
+    window.alert('Delete failed (wrong code or no permission)');
   }
 }
 </script>
 
 <style scoped>
-/* 背景：深寒冰漸層 */
+/* Background: deep cold icy gradient */
 .bg-base {
   background: linear-gradient(180deg, #06182c 0%, #0c2c45 45%, #14455f 100%);
 }
-/* 極光光暈 */
+/* Aurora glow */
 .bg-aurora {
   background:
     radial-gradient(60% 45% at 18% 12%, rgba(56, 189, 248, 0.28), transparent 70%),
@@ -412,7 +412,7 @@ async function onDelete(m: Msg) {
   filter: blur(2px);
 }
 
-/* 飄雪 */
+/* Falling snow */
 .flake {
   position: absolute;
   top: -6vh;
@@ -427,7 +427,7 @@ async function onDelete(m: Msg) {
   100% { transform: translate(var(--drift), 112vh); }
 }
 
-/* 標題 */
+/* Title */
 .title-text {
   font-size: 2.6rem;
   line-height: 1.05;
@@ -450,7 +450,7 @@ async function onDelete(m: Msg) {
   text-shadow: 0 2px 10px rgba(251, 113, 133, 0.5);
 }
 
-/* 毛玻璃通用 */
+/* Shared frosted-glass style */
 .glass {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -458,7 +458,7 @@ async function onDelete(m: Msg) {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 8px 24px rgba(2, 12, 24, 0.35);
 }
 
-/* 統計卡 */
+/* Stat card */
 .stat-card {
   border-radius: 0.9rem;
   padding: 0.6rem 0.5rem;
@@ -469,7 +469,7 @@ async function onDelete(m: Msg) {
   color: rgba(203, 213, 225, 0.7);
 }
 
-/* 主 CTA */
+/* Main CTA */
 .play-btn {
   position: relative;
   overflow: hidden;
@@ -499,7 +499,7 @@ async function onDelete(m: Msg) {
   transform: scale(0.98);
 }
 
-/* 功能按鈕 */
+/* Menu button */
 .menu-btn {
   display: flex;
   flex-direction: column;
@@ -525,7 +525,7 @@ async function onDelete(m: Msg) {
   transform: scale(0.96);
 }
 
-/* 彈窗卡片 */
+/* Modal card */
 .modal-card {
   border-radius: 1.1rem;
   background: rgba(11, 27, 43, 0.95);

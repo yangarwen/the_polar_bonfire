@@ -4,7 +4,7 @@
 
     <hud :stats="stats" />
 
-    <!-- 左上：靜音 + Debug（小圖示，讓出右上給金錢） -->
+    <!-- Top-left: mute + Debug (small icons; top-right is reserved for money) -->
     <div class="absolute left-3 top-3 z-10 flex items-center gap-2" :style="safeTop">
       <button
         class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/55 text-xl text-white backdrop-blur-md transition hover:bg-slate-800/70 active:scale-95"
@@ -19,90 +19,74 @@
       >
         🛠️
       </button>
-      <!-- FPS（放在此排，永遠在 debug 面板之上、不被遮住） -->
+      <!-- FPS (kept in this row, always above the debug panel so it isn't covered) -->
       <span
         class="flex h-11 items-center rounded-full bg-slate-900/55 px-3 text-sm font-black backdrop-blur-md"
         :class="stats.fps >= 50 ? 'text-lime-300' : stats.fps >= 30 ? 'text-amber-300' : 'text-rose-300'"
       >
         ⚡ {{ stats.fps }}
       </span>
-      <!-- 遊戲時間 -->
+      <!-- Game time -->
       <span class="flex h-11 items-center rounded-full bg-slate-900/55 px-3 text-sm font-black text-cyan-100 backdrop-blur-md tabular-nums">
         ⏱️ {{ timeText }}
       </span>
     </div>
 
-    <!-- 第二列（右側，避開左側狀態列）：畫質 + 樹木佈局下拉 -->
+    <!-- Second row (right side, clear of the left status column): quality selector -->
     <div class="absolute right-3 top-[4.5rem] z-10 flex gap-1">
       <select
         v-model.number="quality"
         @change="onQuality"
         class="h-9 rounded-full bg-slate-900/55 px-2 text-xs font-bold text-white backdrop-blur-md outline-none"
-        title="畫質：卡頓時選流暢"
+        title="Quality: pick Smooth if it stutters"
       >
-        <option :value="1">🖥️ 高</option>
-        <option :value="1.5">🖥️ 標準</option>
-        <option :value="2">🖥️ 流暢</option>
-        <option :value="2.5">🖥️ 省電</option>
+        <option :value="1">🖥️ High</option>
+        <option :value="1.5">🖥️ Standard</option>
+        <option :value="2">🖥️ Smooth</option>
+        <option :value="2.5">🖥️ Power Saver</option>
       </select>
     </div>
 
-    <!-- Debug 面板：背後金條參數 -->
+    <!-- Debug panel: camera parameters -->
     <div
       v-if="showDebug"
       class="absolute left-3 top-16 z-40 w-64 rounded-2xl bg-slate-950/85 p-3 text-xs text-white shadow-2xl ring-1 ring-cyan-200/15 backdrop-blur-md"
     >
-      <div class="mb-2 text-sm font-black text-fuchsia-300">🪙 背後金條 Debug</div>
+      <div class="mb-2 text-sm font-black text-fuchsia-300">🎥 Camera Debug</div>
       <div class="mb-3">
-        <div class="flex justify-between"><span>金條層距（疊高間距）</span><span class="font-bold">{{ goldLayerH.toFixed(2) }}</span></div>
-        <input type="range" class="w-full accent-fuchsia-400" min="0.1" max="0.8" step="0.01" v-model.number="goldLayerH" @input="onGoldLayerH" />
-      </div>
-      <div class="mb-3">
-        <div class="flex justify-between"><span>離肉的距離（往後）</span><span class="font-bold">{{ goldBackOffset.toFixed(2) }}</span></div>
-        <input type="range" class="w-full accent-fuchsia-400" min="0.8" max="5" step="0.01" v-model.number="goldBackOffset" @input="onGoldBackOffset" />
-      </div>
-
-      <div class="mb-2 text-sm font-black text-fuchsia-300">🎥 鏡頭 Debug</div>
-      <div class="mb-3">
-        <div class="flex justify-between"><span>遠近（縮放）</span><span class="font-bold">{{ camRadius.toFixed(0) }}</span></div>
+        <div class="flex justify-between"><span>Zoom (distance)</span><span class="font-bold">{{ camRadius.toFixed(0) }}</span></div>
         <input type="range" class="w-full accent-fuchsia-400" min="8" max="75" step="0.5" v-model.number="camRadius" @input="onCamRadius" />
       </div>
       <div class="mb-3">
-        <div class="flex justify-between"><span>旋轉角度（度）</span><span class="font-bold">{{ camAngle.toFixed(0) }}°</span></div>
+        <div class="flex justify-between"><span>Rotation (degrees)</span><span class="font-bold">{{ camAngle.toFixed(0) }}°</span></div>
         <input type="range" class="w-full accent-fuchsia-400" min="-180" max="180" step="1" v-model.number="camAngle" @input="onCamAngle" />
       </div>
 
-      <div class="mb-2 text-sm font-black text-fuchsia-300">🌲 地圖裝飾 Debug</div>
+      <div class="mb-2 text-sm font-black text-fuchsia-300">💰 Money Debug</div>
       <div class="mb-3">
-        <div class="flex justify-between"><span>樹木數量</span><span class="font-bold">{{ treeCount }}</span></div>
-        <input type="range" class="w-full accent-fuchsia-400" min="0" max="80" step="1" v-model.number="treeCount" @input="onTreeCount" />
-      </div>
-
-      <div class="mb-2 text-sm font-black text-fuchsia-300">💰 金錢 Debug</div>
-      <div class="mb-3">
-        <div class="flex justify-between"><span>設定金錢</span><span class="font-bold">{{ moneyDebug.toLocaleString() }}</span></div>
+        <div class="flex justify-between"><span>Set money</span><span class="font-bold">{{ moneyDebug.toLocaleString() }}</span></div>
         <input type="range" class="w-full accent-fuchsia-400" min="0" max="5000" step="50" v-model.number="moneyDebug" @input="onMoney" />
       </div>
 
-      <div class="mb-2 text-sm font-black text-fuchsia-300">🧟 波次 Debug</div>
+      <div class="mb-2 text-sm font-black text-fuchsia-300">🧟 Wave Debug</div>
       <div>
-        <div class="flex justify-between"><span>跳到第幾波</span><span class="font-bold">第 {{ waveDebug }} 波</span></div>
+        <div class="flex justify-between"><span>Jump to wave</span><span class="font-bold">Wave {{ waveDebug }}</span></div>
         <input type="range" class="w-full accent-fuchsia-400" min="1" max="50" step="1" v-model.number="waveDebug" />
         <button class="mt-2 w-full rounded-lg bg-fuchsia-600 py-1.5 text-sm font-black text-white active:scale-95" @click="onWave">
-          ▶ 跳到第 {{ waveDebug }} 波（會自動蓋房子）
+          ▶ Jump to wave {{ waveDebug }} (auto-builds the core)
         </button>
       </div>
     </div>
 
-    <!-- 操作提示 -->
+    <!-- Controls hint -->
     <div
       v-if="showHint"
       class="pointer-events-none absolute left-1/2 top-16 z-10 -translate-x-1/2 rounded-xl bg-slate-950/60 px-4 py-2 text-center text-xs text-cyan-50/90 ring-1 ring-cyan-200/15 backdrop-blur-md sm:text-sm"
     >
-      營地內踩 🪓🗡️🔫 換武器 → 進 🐔獵場 狩獵 → 叼肉走回 🥩基地 陳列 → 拓荒者買單後到 💲錢箱 收金幣 → 踩升級墊變強
+      In camp, step on 🪓🗡️🔫 to swap weapons → enter the 🐔 hunting ground → carry meat back to 🥩 base to display → after settlers pay, collect coins at the 💲 cash box → step on upgrade pads to grow stronger
     </div>
 
-    <!-- 點塔升級選單 -->
+    <!-- Tower upgrade menu -->
     <div
       v-if="stats.selectedTower"
       class="absolute bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 rounded-2xl bg-slate-950/85 p-3 text-center text-white shadow-2xl ring-1 ring-cyan-200/20 backdrop-blur-md"
@@ -114,80 +98,80 @@
         ✕
       </button>
       <div class="text-lg font-black">
-        {{ stats.selectedTower.type === 'cannon' ? '💣 電漿砲' : stats.selectedTower.type === 'slow' ? '❄️ 冰凍力場塔' : '🏹 雷射塔' }}
+        {{ stats.selectedTower.type === 'cannon' ? '💣 Plasma Cannon' : stats.selectedTower.type === 'slow' ? '❄️ Cryo Field Tower' : '🏹 Laser Tower' }}
         <span class="ml-1 text-cyan-300">Lv.{{ stats.selectedTower.level }}/{{ stats.selectedTower.maxLevel }}</span>
       </div>
-      <div class="mt-1 text-sm font-black text-cyan-200">目前 {{ stats.selectedTower.detail }}</div>
-      <div class="text-[11px] text-white/60">{{ stats.selectedTower.type === 'slow' ? '減速強度 / 範圍 隨等級提升' : '傷害 / 射速 / 發數 隨等級提升' }}</div>
+      <div class="mt-1 text-sm font-black text-cyan-200">Now {{ stats.selectedTower.detail }}</div>
+      <div class="text-[11px] text-white/60">{{ stats.selectedTower.type === 'slow' ? 'Slow strength / range scale with level' : 'Damage / fire rate / shots scale with level' }}</div>
       <button
         v-if="!stats.selectedTower.maxed"
         class="mt-2.5 w-full rounded-xl px-4 py-2.5 text-base font-black transition active:scale-95"
         :class="stats.selectedTower.affordable ? 'bg-cyan-500 text-white hover:bg-cyan-400' : 'bg-white/15 text-white/50'"
         @click="onTowerUpgrade"
       >
-        ⬆️ 升級　💰 {{ stats.selectedTower.cost.toLocaleString() }}
+        ⬆️ Upgrade　💰 {{ stats.selectedTower.cost.toLocaleString() }}
       </button>
-      <div v-else class="mt-2.5 rounded-xl bg-amber-500/30 px-4 py-2.5 text-base font-black text-amber-200">已滿級 ✦</div>
+      <div v-else class="mt-2.5 rounded-xl bg-amber-500/30 px-4 py-2.5 text-base font-black text-amber-200">Max level ✦</div>
     </div>
 
     <joystick class="absolute bottom-8 left-8 z-10" @move="onJoyMove" @end="onJoyEnd" />
 
 
-    <!-- 塔防開啟說明（買房後跳出） -->
+    <!-- Defense intro (pops up after the core is built) -->
     <div v-if="stats.showDefenseIntro" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-5 backdrop-blur-md">
       <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 p-5 text-center text-slate-100 shadow-2xl ring-1 ring-cyan-300/30">
         <div class="mb-2 text-4xl">🔥❄️</div>
-        <div class="mb-1 text-xl font-black text-cyan-200">能量核心已啟動!</div>
+        <div class="mb-1 text-xl font-black text-cyan-200">Energy core online!</div>
         <p class="mb-4 text-sm leading-relaxed text-slate-300">
-          酷寒降臨,異形即將來襲!在營地四周蓋 🏹雷射塔 / 💣電漿砲 / ❄️冰凍力場塔 攔截,<br />
-          別讓 <span class="font-black text-rose-300">10 隻</span> 異形突破核心防線,<br />
-          撐過 <span class="font-black text-amber-300">30 個寒夜</span> 即可等到救援!
+          The deep cold sets in and aliens are coming! Build 🏹 Laser Towers / 💣 Plasma Cannons / ❄️ Cryo Field Towers around camp to intercept them,<br />
+          don't let <span class="font-black text-rose-300">10</span> aliens breach the core's defenses,<br />
+          survive <span class="font-black text-amber-300">30 cold nights</span> and rescue will arrive!
         </p>
         <div class="mb-4 rounded-xl bg-cyan-500/10 px-3 py-2 text-sm font-bold text-cyan-200 ring-1 ring-cyan-300/20">
-          ⏱️ 按下確認後 <span class="text-amber-300">1 分鐘</span> 迎來第一個寒夜
+          ⏱️ The first cold night arrives <span class="text-amber-300">1 minute</span> after you confirm
         </div>
         <button
           v-if="stats.money >= 5000"
           class="w-full rounded-xl bg-cyan-500 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-400 active:scale-95"
           @click="onStartDefense"
         >
-          確認,啟動核心!
+          Confirm, activate the core!
         </button>
         <button
           v-else
           disabled
           class="w-full cursor-not-allowed rounded-xl bg-white/10 py-3 text-base font-black text-rose-300/80"
         >
-          需身上有 💰5000 才能開啟（目前 {{ stats.money.toLocaleString() }}）
+          Need 💰5000 on hand to start (currently {{ stats.money.toLocaleString() }})
         </button>
       </div>
     </div>
 
-    <!-- 遊戲結束 / 通關 -->
+    <!-- Game over / victory -->
     <div v-if="stats.gameOver || stats.won" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-5 backdrop-blur-md">
       <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 p-6 text-center text-slate-100 shadow-2xl ring-1" :class="stats.won ? 'ring-amber-300/40' : 'ring-rose-400/40'">
         <div class="mb-2 text-5xl">{{ stats.won ? '🏆' : '💀' }}</div>
         <div class="mb-1 text-2xl font-black" :class="stats.won ? 'text-amber-300' : 'text-rose-300'">
-          {{ stats.won ? '等到救援!' : '核心熄滅!' }}
+          {{ stats.won ? 'Rescue arrived!' : 'The core went dark!' }}
         </div>
         <p class="mb-3 text-sm text-slate-300">
-          {{ stats.won ? '你撐過了 30 個寒夜,核心不滅,等到了救援!' : '10 隻異形突破了核心防線…' }}
+          {{ stats.won ? 'You survived 30 cold nights, the core held, and rescue arrived!' : '10 aliens breached the core defenses…' }}
         </p>
         <div class="mb-5 flex justify-center gap-3">
           <div class="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10">
             <div class="text-2xl font-black text-cyan-300">{{ stats.wave }}</div>
-            <div class="text-[11px] text-slate-400">撐到第幾夜</div>
+            <div class="text-[11px] text-slate-400">Nights survived</div>
           </div>
           <div class="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10">
             <div class="text-2xl font-black text-rose-300">{{ stats.breaches }}/{{ stats.breachMax }}</div>
-            <div class="text-[11px] text-slate-400">突破防線</div>
+            <div class="text-[11px] text-slate-400">Breaches</div>
           </div>
         </div>
         <button
           class="mb-2 w-full rounded-xl bg-cyan-500 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-400 active:scale-95"
           @click="onRestart"
         >
-          再玩一次
+          Play again
         </button>
       </div>
     </div>
@@ -213,7 +197,7 @@ const stats = reactive<GameStats>({
   cashPending: 0,
   customers: 0,
   weaponEmoji: '🗡️',
-  weaponName: '大砍刀',
+  weaponName: 'Cleaver',
   nearUpgrade: null,
   nearInfo: null,
   defenseActive: false,
@@ -235,7 +219,7 @@ let game: GameHandle | undefined;
 const MUTE_KEY = 'polar-bonfire:muted';
 const muted = ref(localStorage.getItem(MUTE_KEY) === '1');
 
-/** 畫質（算繪解析度倍率）：1=高畫質、越大越流暢/越糊；玩家自選並記住 */
+/** Quality (render resolution scale): 1 = high quality; higher = smoother/blurrier. Player-chosen and remembered */
 const QUALITY_KEY = 'polar-bonfire:quality';
 const quality = ref(Number(localStorage.getItem(QUALITY_KEY) ?? '1') || 1);
 function onQuality() {
@@ -244,36 +228,28 @@ function onQuality() {
 }
 
 
-/** 背景音樂：固定播放「歡樂」這首（移除下拉選單） */
-const HAPPY_TRACK = Math.max(0, sound.musicTracks().indexOf('歡樂'));
+/** Background music: always plays the "Cheerful" track (dropdown removed) */
+const HAPPY_TRACK = Math.max(0, sound.musicTracks().indexOf('Cheerful'));
 
 const showHint = ref(true);
 let hintTimer: number | undefined;
-/** 避開瀏海/動態島 */
+/** Avoid the notch / Dynamic Island */
 const safeTop = { top: 'max(0.75rem, env(safe-area-inset-top))' };
 
-/** Debug：背後金條參數（與 game.ts 預設一致） */
+/** Debug panel toggle */
 const showDebug = ref(false);
-/** 開啟 Debug 需輸入留言板刪除密碼（8bytes生日）；關閉不需要 */
+/** Opening Debug requires the message-board delete password; closing does not */
 function onToggleDebug() {
   if (showDebug.value) {
     showDebug.value = false;
     return;
   }
-  const k = window.prompt('輸入除錯密碼（＝留言板刪除碼）：') || '';
+  const k = window.prompt('Enter debug password (= message-board delete code):') || '';
   if (!k) return;
   if (k === '19840501') showDebug.value = true;
-  else window.alert('密碼錯誤');
+  else window.alert('Wrong password');
 }
-const goldLayerH = ref(0.48);
-const goldBackOffset = ref(2.48);
-function onGoldLayerH() {
-  game?.setGoldLayerH(goldLayerH.value);
-}
-function onGoldBackOffset() {
-  game?.setGoldBackOffset(goldBackOffset.value);
-}
-/** 鏡頭：遠近（半徑）與旋轉角度（度），預設與 config 一致（radius 34、alpha -90°） */
+/** Camera: zoom (radius) and rotation (degrees); defaults match config (radius 34, alpha -90°) */
 const camRadius = ref(34);
 const camAngle = ref(-90);
 function onCamRadius() {
@@ -282,17 +258,12 @@ function onCamRadius() {
 function onCamAngle() {
   game?.setCameraAlpha((camAngle.value * Math.PI) / 180);
 }
-/** 地圖樹木數量（預設與 game.ts treeVisible 一致） */
-const treeCount = ref(80);
-function onTreeCount() {
-  game?.setTreeCount(treeCount.value);
-}
-/** Debug：直接設定金錢（拉桿值＝設定目標，非即時金錢） */
+/** Debug: set money directly (slider value = target, not live money) */
 const moneyDebug = ref(0);
 function onMoney() {
   game?.setMoney(moneyDebug.value);
 }
-/** Debug：跳到指定波次感受難度 */
+/** Debug: jump to a given wave to feel the difficulty */
 const waveDebug = ref(10);
 function onWave() {
   game?.setWave(waveDebug.value);
@@ -304,8 +275,8 @@ onMounted(() => {
     onStats: (s) => Object.assign(stats, s),
   });
   game.setMuted(muted.value);
-  game.setHardwareScaling(quality.value); // 套用上次選的畫質
-  /** 固定播放「歡樂」（實際播放會等首次點擊/移動解鎖音訊） */
+  game.setHardwareScaling(quality.value); // apply the last chosen quality
+  /** Always play "Cheerful" (actual playback waits for the first tap/move to unlock audio) */
   sound.setMusic(HAPPY_TRACK);
   hintTimer = window.setTimeout(() => (showHint.value = false), 9000);
 });

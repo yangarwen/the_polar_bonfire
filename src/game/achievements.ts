@@ -1,4 +1,4 @@
-/** 成就系統：解鎖狀態存在 localStorage，首頁顯示成就表 */
+/** Achievements: unlock state stored in localStorage; shown on the home page */
 export interface AchievementDef {
   id: string;
   emoji: string;
@@ -6,19 +6,19 @@ export interface AchievementDef {
   desc: string;
 }
 
-/** 成就清單（顯示順序＝難度由淺到深） */
+/** Achievement list (display order = easiest to hardest) */
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'sell', emoji: '🥩', name: '第一筆交易', desc: '賣出獵物肉換得金幣' },
-  { id: 'rich', emoji: '💰', name: '富甲一方', desc: '累積賺到 $2000' },
-  { id: 'dog', emoji: '🤖', name: '機械夥伴', desc: '啟動一隻機械獵犬' },
-  { id: 'hunter', emoji: '🔫', name: '召集獵手', desc: '召集拓荒獵手' },
-  { id: 'cashier', emoji: '🧑‍💼', name: '後勤就緒', desc: '雇用補給官' },
-  { id: 'pasture2', emoji: '🧨', name: '開疆闢土', desc: '炸開獵場 2' },
-  { id: 'house', emoji: '🔥', name: '核心啟動', desc: '啟動能量核心' },
-  { id: 'boss', emoji: '👹', name: '異形剋星', desc: '擊殺第一隻巨型異形' },
-  { id: 'wave10', emoji: '🛡️', name: '守備新手', desc: '撐過第 10 個寒夜' },
-  { id: 'wave20', emoji: '⚔️', name: '守備好手', desc: '撐過第 20 個寒夜' },
-  { id: 'win', emoji: '🏆', name: '等到救援', desc: '撐過 30 個寒夜' },
+  { id: 'sell', emoji: '🥩', name: 'First Sale', desc: 'Sell meat for coins' },
+  { id: 'rich', emoji: '💰', name: 'Well Off', desc: 'Earn $2000 in total' },
+  { id: 'dog', emoji: '🤖', name: 'Mechanical Partner', desc: 'Deploy a robo-hound' },
+  { id: 'hunter', emoji: '🔫', name: 'Rally a Hunter', desc: 'Hire a frontier hunter' },
+  { id: 'cashier', emoji: '🧑‍💼', name: 'Logistics Ready', desc: 'Hire a quartermaster' },
+  { id: 'pasture2', emoji: '🧨', name: 'Break New Ground', desc: 'Blast open Hunting Ground 2' },
+  { id: 'house', emoji: '🔥', name: 'Core Online', desc: 'Activate the energy core' },
+  { id: 'boss', emoji: '👹', name: 'Alien Bane', desc: 'Kill your first giant alien' },
+  { id: 'wave10', emoji: '🛡️', name: 'Rookie Defender', desc: 'Survive the 10th cold night' },
+  { id: 'wave20', emoji: '⚔️', name: 'Veteran Defender', desc: 'Survive the 20th cold night' },
+  { id: 'win', emoji: '🏆', name: 'Rescue Arrives', desc: 'Survive 30 cold nights' },
 ];
 
 const KEY = 'polar-bonfire:achievements';
@@ -31,7 +31,7 @@ export function loadAchievements(): Set<string> {
   }
 }
 
-/** 解鎖一個成就（已解鎖則略過），回傳是否為「首次解鎖」 */
+/** Unlock an achievement (skips if already unlocked); returns whether this was the first unlock */
 export function unlockAchievement(id: string): boolean {
   const s = loadAchievements();
   if (s.has(id)) return false;

@@ -23,7 +23,6 @@ import {
 import { createTerrain } from './terrain';
 import { loadCharacter, loadProp, loadAnimatedFleet, type AnimatedModel, type AnimatedFleet } from './model-loader';
 import { BackStack } from './back-stack';
-import { TreeField, type TreePlacement } from './tree-field';
 import { FloatingText } from './floating-text';
 import { unlockAchievement } from './achievements';
 import { addTotals, submitRun, getName } from './community';
@@ -110,18 +109,10 @@ export interface GameHandle {
   setMuted: (on: boolean) => void;
   /** 畫質：設定算繪解析度倍率（1=最清晰；越大越省效能/越糊） */
   setHardwareScaling: (level: number) => void;
-  /** 樹木佈局：0~4 五種固定佈局 */
-  setTreeLayout: (idx: number) => void;
-  /** Debug：背後金條的層距（疊高間距） */
-  setGoldLayerH: (v: number) => void;
-  /** Debug：背後金條離肉的距離（往後位移） */
-  setGoldBackOffset: (v: number) => void;
   /** Debug：鏡頭遠近（半徑） */
   setCameraRadius: (v: number) => void;
   /** Debug：鏡頭旋轉角度（弧度 alpha） */
   setCameraAlpha: (v: number) => void;
-  /** Debug：地圖樹木顯示數量 */
-  setTreeCount: (v: number) => void;
   /** Debug：直接設定金錢 */
   setMoney: (v: number) => void;
   /** 升級目前點選的塔 */
@@ -347,15 +338,68 @@ interface Zombie {
   glowing: boolean; // 是否正在發藍光
 }
 
+/** 深空星空背景：以反面巨型球體包住場景，貼上程序化星點圖；不受霧/光影響，永遠在最遠處。 */
+function createStarfield(scene: Scene): Mesh {
+  const px = 2048;
+  const tex = new DynamicTexture('stars-tex', { width: px, height: px }, scene, false);
+  const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+
+  /** 底色：近黑深空（帶極淡的藍紫漸層） */
+  const bg = ctx.createLinearGradient(0, 0, 0, px);
+  bg.addColorStop(0, '#05060d');
+  bg.addColorStop(1, '#080a16');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, px, px);
+
+  /** 細小星點（大量、暗淡，鋪滿天幕） */
+  for (let i = 0; i < 2600; i++) {
+    const a = 0.25 + Math.random() * 0.55;
+    ctx.fillStyle = `rgba(${200 + Math.random() * 55},${220 + Math.random() * 35},255,${a})`;
+    ctx.fillRect(Math.random() * px, Math.random() * px, 1, 1);
+  }
+
+  /** 亮星（少量、帶光暈） */
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * px;
+    const y = Math.random() * px;
+    const r = 2 + Math.random() * 3;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+    g.addColorStop(0, 'rgba(235,245,255,0.95)');
+    g.addColorStop(1, 'rgba(160,200,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  tex.update();
+
+  const mat = new StandardMaterial('stars-mat', scene);
+  mat.emissiveTexture = tex;
+  mat.diffuseColor = Color3.Black();
+  mat.specularColor = Color3.Black();
+  mat.disableLighting = true;
+  mat.backFaceCulling = false; // 從球體內側看
+  mat.disableDepthWrite = true;
+
+  const dome = MeshBuilder.CreateSphere('starfield', { diameter: 900, sideOrientation: Mesh.BACKSIDE }, scene);
+  dome.material = mat;
+  dome.applyFog = false; // 星空不該被大氣霧吃掉
+  dome.infiniteDistance = true; // 永遠跟著相機、貼在最遠處
+  dome.isPickable = false;
+  dome.freezeWorldMatrix();
+  return dome;
+}
+
 export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {}): GameHandle {
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true });
   const scene = new Scene(engine);
-  /** 異星冰封星球大氣：深邃的外星藍 */
-  scene.clearColor = new Color4(0.3, 0.45, 0.66, 1);
+  /** 外太空：近黑的深空背景，遠處地表淡入太空黑 */
+  scene.clearColor = new Color4(0.02, 0.03, 0.06, 1);
   scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogColor = new Color3(0.4, 0.56, 0.76);
-  scene.fogStart = 42;
-  scene.fogEnd = 125;
+  scene.fogColor = new Color3(0.03, 0.05, 0.1);
+  scene.fogStart = 48;
+  scene.fogEnd = 135;
 
   const cam = CONFIG.camera;
   const camera = new ArcRotateCamera('camera', cam.alpha, cam.beta, cam.radius, new Vector3(0, 0.8, 2), scene);
@@ -374,13 +418,15 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
 
   const hemi = new HemisphericLight('hemi', new Vector3(0.4, 1, 0.3), scene);
-  hemi.intensity = 0.95;
-  hemi.diffuse = new Color3(0.78, 0.88, 1.0);
-  hemi.groundColor = new Color3(0.36, 0.56, 0.78);
+  hemi.intensity = 0.7;
+  hemi.diffuse = new Color3(0.55, 0.7, 1.0);
+  hemi.groundColor = new Color3(0.16, 0.26, 0.5);
+  /** 遠方藍白星光當作主光源（冷而硬，太空無大氣散射） */
   const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.3), scene);
-  sun.intensity = 0.75;
-  sun.diffuse = new Color3(0.74, 0.86, 1.05);
+  sun.intensity = 0.85;
+  sun.diffuse = new Color3(0.7, 0.82, 1.1);
 
+  createStarfield(scene); // 深空星空（不受霧影響）
   createTerrain(scene).freezeWorldMatrix(); // 靜態地面
 
   /** ===== 木材材質 ===== */
@@ -394,42 +440,51 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   /** ===== 牧場2 容器（店面西側，初始藏在樹林後；整片掛在 holder 上，買炸藥後一次開啟） ===== */
   const pasture2Holder = new TransformNode('pasture2', scene);
   pasture2Holder.setEnabled(false);
-  makeSign(scene, '🐄 牧場', CONFIG.pasture.cx, 2.6, CONFIG.pasture.cz + CONFIG.pasture.halfZ - 0.5);
-  makeSign(scene, '🐄 牧場2', CONFIG.pasture2.cx, 2.6, CONFIG.pasture2.cz + CONFIG.pasture2.halfZ - 0.5).parent =
+  makeSign(scene, '🐄 Pasture', CONFIG.pasture.cx, 2.6, CONFIG.pasture.cz + CONFIG.pasture.halfZ - 0.5);
+  makeSign(scene, '🐄 Pasture 2', CONFIG.pasture2.cx, 2.6, CONFIG.pasture2.cz + CONFIG.pasture2.halfZ - 0.5).parent =
     pasture2Holder;
 
   /**
-   * ===== 圍欄（Minecraft 風 Fence_Center 模型，2 單位一段，剛好對齊 seg=2 網格） =====
-   * 模型非阻塞載入，完成後再蓋柵欄（載入失敗則 fallback 程序化木欄）。
+   * ===== 圍欄（外太空：發光能量護欄，取代原木柵） =====
+   * 不載入木柵模型；改用程序化柱+橫桿（fenceSeg 的 fallback），套上自發光青藍材質。
    */
-  async function setupFences() {
-    const center = await loadProp(scene, '/models/fence/Fence_Center.glb', 2.0);
-    if (center) center.isVisible = false;
-    buildShopFence(scene, center, wood);
-    buildPastureFence(scene, center, wood, CONFIG.pasture, [{ side: 'south', center: CONFIG.pasture.cx, half: 3 }]);
-    buildPastureFence(scene, center, wood, CONFIG.pasture2, [{ side: 'east', center: -7, half: 3 }], pasture2Holder);
+  const fenceMat = new StandardMaterial('fence-energy', scene);
+  fenceMat.emissiveColor = new Color3(0.25, 0.85, 1.0); // 青藍能量光
+  fenceMat.diffuseColor = Color3.Black();
+  fenceMat.specularColor = Color3.Black();
+  fenceMat.disableLighting = true; // 不受光，均勻發光，於深空背景中突出
+  function setupFences() {
+    buildShopFence(scene, null, fenceMat);
+    buildPastureFence(scene, null, fenceMat, CONFIG.pasture, [{ side: 'south', center: CONFIG.pasture.cx, half: 3 }]);
+    buildPastureFence(scene, null, fenceMat, CONFIG.pasture2, [{ side: 'east', center: -7, half: 3 }], pasture2Holder);
   }
-  void setupFences();
+  setupFences();
 
   /** ===== 炸藥購買框：站著付滿 💲500 即炸開牧場2 ===== */
-  const dynamiteStation = new BuyStation(scene, CONFIG.dynamite.x, CONFIG.dynamite.z, CONFIG.dynamite.cost, '🧨', '能量爆破', '炸開獵場2', '獵場2 已開通');
+  const dynamiteStation = new BuyStation(scene, CONFIG.dynamite.x, CONFIG.dynamite.z, CONFIG.dynamite.cost, '🧨', 'Energy Blast', 'Blast open Hunting Ground 2', 'Ground 2 opened');
   let dynamitePaid = 0;
   let pasture2Unlocked = false;
   /** 爆炸時的畫面震動強度（1→0 衰減） */
   let camShake = 0;
 
-  /** ===== 牧羊犬購買框：站著付滿 💲300 召喚一隻會自動撿肉的狗 ===== */
-  const dogStation = new BuyStation(scene, CONFIG.dog.x, CONFIG.dog.z, CONFIG.dog.cost, '🤖', '機械獵犬', '自動叼獵物回基地', '已有機械獵犬');
+  /** Re-hireable crew caps and per-unit cost scaling (each extra hire costs more) */
+  const DOG_MAX = 5;
+  const HUNTER_MAX = 5;
+  const dogCostFor = (n: number) => Math.floor(CONFIG.dog.cost * Math.pow(1.7, n));
+  const hunterCostFor = (n: number) => Math.floor(CONFIG.hunter.cost * Math.pow(1.7, n));
+
+  /** ===== Robo-hound buy station: stand & pay to deploy an auto meat-fetcher; re-hireable up to DOG_MAX ===== */
+  const dogStation = new BuyStation(scene, CONFIG.dog.x, CONFIG.dog.z, CONFIG.dog.cost, '🤖', 'Robo-Hound', 'Auto-fetches meat to base', 'Crew full');
   let dogPaid = 0;
-  let dogBought = false;
+  let dogCount = 0;
   const dogs: Dog[] = [];
   let dogFleet: AnimatedFleet | null = null;
 
-  /** ===== 自動化員工：獵人（自動打怪）、收銀員（自動收錢） ===== */
-  const hunterStation = new BuyStation(scene, CONFIG.hunter.x, CONFIG.hunter.z, CONFIG.hunter.cost, '🔫', '拓荒獵手', '自動狩獵取肉', '已召集獵手');
-  const cashierStation = new BuyStation(scene, CONFIG.cashier.x, CONFIG.cashier.z, CONFIG.cashier.cost, '🧑‍💼', '補給官', '自動收取金幣', '已有補給官');
+  /** ===== Automated crew: hunter (auto-fights for meat), quartermaster (auto-collects coins) ===== */
+  const hunterStation = new BuyStation(scene, CONFIG.hunter.x, CONFIG.hunter.z, CONFIG.hunter.cost, '🔫', 'Frontier Hunter', 'Auto-hunts for meat', 'Crew full');
+  const cashierStation = new BuyStation(scene, CONFIG.cashier.x, CONFIG.cashier.z, CONFIG.cashier.cost, '🧑‍💼', 'Quartermaster', 'Auto-collects coins', 'Hired');
   let hunterPaid = 0;
-  let hunterBought = false;
+  let hunterCount = 0;
   let cashierPaid = 0;
   let cashierBought = false;
   const workers: Worker[] = [];
@@ -437,29 +492,29 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   let cashierFleet: AnimatedFleet | null = null;
 
   /** ===== 房子（牧場2 對面，買下後炸地長出 + 紅磚圍牆院子） ===== */
-  const houseStation = new BuyStation(scene, CONFIG.house.x, CONFIG.house.z, CONFIG.house.cost, '🔥', '啟動核心', '異形來襲守核心', '核心已啟動', true);
+  const houseStation = new BuyStation(scene, CONFIG.house.x, CONFIG.house.z, CONFIG.house.cost, '🔥', 'Activate Core', 'Aliens attack — defend the core', 'Core online', true);
   let houseBought = false;
 
-  /** 靠近功能框時顯示的說明（解決「看不懂地上圖案」） */
+  /** Info shown when near a station (helps players read the ground icons) */
   const WEAPON_EFFECT: Record<string, string> = {
-    sword: '快速橫掃，一次掃到多隻',
-    axe: '攻擊時旋轉，打到周圍全部敵人',
-    smg: '遠距離電漿掃射',
+    sword: 'Fast sweep, hits several at once',
+    axe: 'Spins on attack, hits everything around you',
+    smg: 'Long-range plasma spray',
   };
   const infoPoints: { x: number; z: number; emoji: string; name: string; effect: string; hint: string }[] = [
-    { x: CONFIG.dynamite.x, z: CONFIG.dynamite.z, emoji: '🧨', name: '能量爆破', effect: '炸開獵場2（出現肉×2、血×2 的強化生物）', hint: '站著付款施放' },
-    { x: CONFIG.dog.x, z: CONFIG.dog.z, emoji: '🤖', name: '機械獵犬', effect: '自動把地上的獵物肉叼回基地', hint: '站著付款啟動' },
-    { x: CONFIG.hunter.x, z: CONFIG.hunter.z, emoji: '🔫', name: '拓荒獵手', effect: '自動進獵場狩獵取肉', hint: '站著付款召集' },
-    { x: CONFIG.cashier.x, z: CONFIG.cashier.z, emoji: '🧑‍💼', name: '補給官', effect: '自動收取金幣', hint: '站著付款雇用' },
-    { x: CONFIG.house.x, z: CONFIG.house.z, emoji: '🔥', name: '啟動核心', effect: '異形來襲，蓋塔守護能量核心', hint: '身上滿 $5000 自動啟動（不扣錢）' },
-    ...WEAPONS.map((w) => ({ x: w.x, z: w.z, emoji: w.emoji, name: w.name, effect: WEAPON_EFFECT[w.id] ?? '', hint: '踩上去購買／切換' })),
+    { x: CONFIG.dynamite.x, z: CONFIG.dynamite.z, emoji: '🧨', name: 'Energy Blast', effect: 'Blast open Hunting Ground 2 (buffed creatures: 2× meat, 2× hp)', hint: 'Stand and pay to detonate' },
+    { x: CONFIG.dog.x, z: CONFIG.dog.z, emoji: '🤖', name: 'Robo-Hound', effect: 'Auto-fetches dropped meat back to base', hint: 'Stand and pay to deploy' },
+    { x: CONFIG.hunter.x, z: CONFIG.hunter.z, emoji: '🔫', name: 'Frontier Hunter', effect: 'Auto-enters the hunting ground to hunt for meat', hint: 'Stand and pay to hire' },
+    { x: CONFIG.cashier.x, z: CONFIG.cashier.z, emoji: '🧑‍💼', name: 'Quartermaster', effect: 'Auto-collects coins', hint: 'Stand and pay to hire' },
+    { x: CONFIG.house.x, z: CONFIG.house.z, emoji: '🔥', name: 'Activate Core', effect: 'Aliens attack — build towers to defend the energy core', hint: 'Auto-activates with $5000 on hand (no charge)' },
+    ...WEAPONS.map((w) => ({ x: w.x, z: w.z, emoji: w.emoji, name: w.name, effect: WEAPON_EFFECT[w.id] ?? '', hint: 'Step on to buy / switch' })),
     ...CONFIG.house.towerPads.map((p) => ({
       x: p.x,
       z: p.z,
       emoji: p.type === 'cannon' ? '💣' : p.type === 'slow' ? '❄️' : '🏹',
-      name: p.type === 'cannon' ? '電漿砲' : p.type === 'slow' ? '冰凍力場塔' : '雷射塔',
-      effect: p.type === 'cannon' ? '範圍爆擊，濺射傷害' : p.type === 'slow' ? '釋放冰凍力場讓異形減速（無傷害）' : '單體快速射擊',
-      hint: '站著付款蓋塔，點塔可升級',
+      name: p.type === 'cannon' ? 'Plasma Cannon' : p.type === 'slow' ? 'Cryo Field Tower' : 'Laser Tower',
+      effect: p.type === 'cannon' ? 'Area burst with splash damage' : p.type === 'slow' ? 'Releases a cryo field that slows aliens (no damage)' : 'Fast single-target shots',
+      hint: 'Stand and pay to build; tap a tower to upgrade',
     })),
   ];
   /** 紅磚圍牆＋塔位掛在此節點上，買下房子後一次顯示 */
@@ -679,7 +734,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
 
   /** ===== 販售攤位 ===== */
   buildTable(scene, wood, CONFIG.counter.x, CONFIG.counter.z);
-  makeSign(scene, '🥩 販售', CONFIG.counter.x, 2.5, CONFIG.counter.z);
+  makeSign(scene, '🥩 Shop', CONFIG.counter.x, 2.5, CONFIG.counter.z);
   /** 肉桌前的白色透明框框：走上去把背上的肉上架 */
   makeFrameZone(scene, CONFIG.counter.x, CONFIG.counter.z - 1.8, 2.8, 2.0);
 
@@ -719,15 +774,8 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   backStack.setBaseUp(0.8 * PLAYER_SCALE);
   backStack.setBackOffset(1.0 * PLAYER_SCALE);
   backStack.setLayerH(0.15 * PLAYER_SCALE);
-  /** 背後金條堆（疊在肉的後面，數量隨金幣多寡顯示） */
-  const goldStack = new BackStack(scene, '/models/winter/gold_bar.glb', new Color3(1, 0.84, 0.2));
-  goldStack.setScale(2 * PLAYER_SCALE);
-  goldStack.setBackOffset(1.55 * PLAYER_SCALE); // 比肉更靠後（在肉的後面）
-  goldStack.setBaseUp(0.8 * PLAYER_SCALE);
-  goldStack.setLayerH(0.3 * PLAYER_SCALE); // 金條層距加大（否則疊太密、看起來長很慢）
-  /** 背上最多顯示幾根金條（超過不再往上疊，邏輯仍計數） */
-  const GOLD_BARS_MAX = 200; // 背上金條最多 200 層
-  /** 付款時每花掉這麼多錢，就有一根金條從背上飛進框框 */
+  /** 金錢不再背在身上：移除背後金條堆，money 純為數值。付款/收錢仍保留金條飛行回饋。 */
+  /** 付款時每花掉這麼多錢，就有一根金條從（玩家位置）飛進框框 */
   const PAY_PER_BAR = 25;
 
   /** ===== 武器系統 ===== */
@@ -934,7 +982,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   const achieve = (id: string) => {
     if (unlockedLocal.has(id)) return;
     unlockedLocal.add(id);
-    if (unlockAchievement(id)) floatText.spawn('🏅 成就解鎖！', player.position.x, 4, player.position.z, '#ffe066', 1.6);
+    if (unlockAchievement(id)) floatText.spawn('🏅 Achievement unlocked!', player.position.x, 4, player.position.z, '#ffe066', 1.6);
   };
   /** 收錢漂浮數字節流累計（避免每根金條都冒一個） */
   let collectShowSum = 0;
@@ -1029,108 +1077,115 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   /** ===== 非同步載入模型，完成後建立 instance 池、牛群、玩家視覺 ===== */
   void initAssets();
 
-  /** 樹林：固定佈局（5 種預設，下拉選；非隨機） */
-  let treeField: TreeField | null = null;
-  let treeSource: Mesh | null = null; // Pine Tree 來源（共用，切換佈局時不重載）
-  let treeLayoutIdx = 2; // 固定「群島」佈局
-  const TREE_MAX = 80;
-  let treeVisible = 80; // 顯示全部（佈局自訂棵數）
-  function applyTreeCount() {
-    treeField?.setCount(treeVisible);
-  }
+  /** 外太空場景：發光水晶叢 + 岩石 + 巨石碑取代樹林，點綴空曠外圍（取代原 TreeField 系統） */
+  scatterSpaceProps();
+  function scatterSpaceProps() {
+    /** 固定種子（由座標推導）→ 每次擺放一致，不隨機跳動 */
+    const seeded = (x: number, z: number, k: number) => ((Math.sin(x * 12.9 + z * 78.2 + k * 3.1) * 43758.5) % 1 + 1) % 1;
 
-  /** 5 種固定樹木佈局（皆位於基地外圍，回傳佈點清單） */
-  function treeLayout(idx: number): TreePlacement[] {
-    const out: TreePlacement[] = [];
-    const add = (x: number, z: number, s = 1) => out.push({ mesh: 0, x, z, rotY: (x * 13.7 + z * 7.3) % 6.283, scale: s });
-    const ring = (count: number, r: number, phase = 0) => {
-      for (let i = 0; i < count; i++) {
-        const ang = phase + (i / count) * Math.PI * 2;
-        add(Math.cos(ang) * r, Math.sin(ang) * r);
-      }
-    };
-    switch (idx) {
-      case 0: // 大圈稀疏
-        ring(18, 60);
-        break;
-      case 1: {
-        // 北側森林牆（三道弧，背面較密）
-        const arc = (count: number, r: number) => {
-          for (let i = 0; i < count; i++) {
-            const ang = Math.PI * 0.55 + (i / (count - 1)) * Math.PI * 0.9;
-            add(Math.cos(ang) * r, Math.sin(ang) * r);
-          }
-        };
-        arc(10, 50);
-        arc(12, 60);
-        arc(14, 70);
-        break;
-      }
-      case 2: // 群島樹叢（數個散落小叢）
-        for (const [cx, cz] of [
-          [-62, -10],
-          [62, -10],
-          [0, -62],
-          [-45, 42],
-          [45, 42],
-          [-60, 32],
-        ]) {
-          for (let k = 0; k < 5; k++) add(cx + ((k % 3) - 1) * 7, cz + Math.floor(k / 3) * 7);
-        }
-        break;
-      case 3: // 方形外框
-        for (let x = -60; x <= 60; x += 15) {
-          add(x, -60);
-          add(x, 60);
-        }
-        for (let z = -45; z <= 45; z += 15) {
-          add(-60, z);
-          add(60, z);
-        }
-        break;
-      case 4: {
-        // 螺旋散布（黃金角，固定種子；看起來自然但每次一樣）
-        const N = 30;
-        const GA = Math.PI * (3 - Math.sqrt(5));
-        for (let i = 0; i < N; i++) {
-          const r = 48 + (i / N) * 26;
-          const ang = i * GA;
-          add(Math.cos(ang) * r, Math.sin(ang) * r);
-        }
-        break;
-      }
-    }
-    /** 過濾掉落在「院子(塔防區)/基地/牧場」內的樹（含緩衝），避免樹跑進塔區 */
+    /** 排除基地/院子/牧場範圍（含緩衝，沿用原樹林過濾邏輯） */
     const M = 5;
     const a = CONFIG.arenaHalf;
-    const y = CONFIG.house.yard;
+    const yd = CONFIG.house.yard;
     const P1 = CONFIG.pasture;
     const P2 = CONFIG.pasture2;
     const inRect = (x: number, z: number, minX: number, maxX: number, minZ: number, maxZ: number) =>
       x > minX - M && x < maxX + M && z > minZ - M && z < maxZ + M;
-    return out.filter(
-      (p) =>
-        !inRect(p.x, p.z, -a, a, -a, a) && // 店面基地
-        !inRect(p.x, p.z, y.minX, y.maxX, y.minZ, y.maxZ) && // 院子/塔防區
-        !inRect(p.x, p.z, P1.cx - P1.halfX, P1.cx + P1.halfX, P1.cz - P1.halfZ, P1.cz + P1.halfZ) && // 牧場1
-        !inRect(p.x, p.z, P2.cx - P2.halfX, P2.cx + P2.halfX, P2.cz - P2.halfZ, P2.cz + P2.halfZ), // 牧場2
-    );
-  }
-  /** 依目前佈局重建樹林（切換時呼叫；不重載來源 mesh） */
-  function buildTrees() {
-    if (!treeSource) return;
-    treeField?.dispose();
-    treeField = new TreeField([treeSource], treeLayout(treeLayoutIdx));
-    applyTreeCount();
-  }
+    const blocked = (x: number, z: number) =>
+      inRect(x, z, -a, a, -a, a) ||
+      inRect(x, z, yd.minX, yd.maxX, yd.minZ, yd.maxZ) ||
+      inRect(x, z, P1.cx - P1.halfX, P1.cx + P1.halfX, P1.cz - P1.halfZ, P1.cz + P1.halfZ) ||
+      inRect(x, z, P2.cx - P2.halfX, P2.cx + P2.halfX, P2.cz - P2.halfZ, P2.cz + P2.halfZ);
 
-  /** 載入 Pine Tree 來源後依目前佈局建樹（非阻塞；須在相關宣告之後呼叫） */
-  void scatterNature();
+    /** ===== 1) 發光水晶（八面體晶體，兩色，instance 複製） ===== */
+    const makeCrystal = (id: string, color: Color3) => {
+      const m = MeshBuilder.CreatePolyhedron(id, { type: 1, size: 0.5 }, scene); // type 1 = 八面體
+      const mat = new StandardMaterial(id + '-mat', scene);
+      mat.emissiveColor = color; // 自發光，於深空中發亮
+      mat.diffuseColor = Color3.Black();
+      mat.specularColor = Color3.Black();
+      mat.disableLighting = true;
+      mat.alpha = 0.9;
+      m.material = mat;
+      m.isVisible = false; // 來源僅供 instance，不直接顯示
+      m.isPickable = false;
+      return m;
+    };
+    const cyan = makeCrystal('crystal-cyan', new Color3(0.3, 0.85, 1));
+    const violet = makeCrystal('crystal-violet', new Color3(0.66, 0.4, 1));
 
-  async function scatterNature() {
-    /** 真實 Pine Tree（低面數），放大棵再 ×2（size 26）；以固定佈局擺放 */
-    treeSource = await loadProp(scene, '/models/pine_tree.glb', 26);
-    if (treeSource) buildTrees();
+    let cn = 0;
+    /** big=true 時為「主晶」（明顯較大）；否則為一般尺寸，兩者混雜 */
+    const placeCrystal = (x: number, z: number, big: boolean) => {
+      if (blocked(x, z)) return;
+      const src = seeded(x, z, 0) > 0.5 ? cyan : violet;
+      const base = 2.0 + seeded(x, z, 1) * 2.2; // 一般高度 2.0~4.2
+      const h = big ? base * (1.7 + seeded(x, z, 4) * 1.0) : base; // 主晶 ×1.7~2.7
+      const w = (0.5 + seeded(x, z, 2) * 0.5) * (big ? 1.6 : 1);
+      const inst = src.createInstance('crystal' + cn++);
+      inst.scaling.set(w, h, w);
+      inst.position.set(x, h * 0.5 - 0.2, z); // 尖端朝上、底端略入地
+      inst.rotation.y = seeded(x, z, 3) * Math.PI * 2;
+      inst.isPickable = false;
+      inst.freezeWorldMatrix();
+    };
+
+    /** 群島式叢集（更多叢、更多顆）；每叢含 1 顆主晶 + 數顆一般晶 */
+    const clusters = [
+      [-62, -10], [62, -10], [0, -62], [-45, 42], [45, 42],
+      [-60, 32], [58, 40], [-30, -58], [30, -58], [-70, 10],
+      [70, 14], [12, 66], [-18, 64], [48, -44], [-50, -42],
+      [-72, -34], [72, -28],
+    ];
+    for (const [cx, cz] of clusters) {
+      const count = 6 + Math.floor(seeded(cx, cz, 9) * 4); // 每叢 6~9 顆（原本 4~6）
+      for (let k = 0; k < count; k++) {
+        const ox = (seeded(cx, cz, k * 2) - 0.5) * 16;
+        const oz = (seeded(cx, cz, k * 2 + 1) - 0.5) * 16;
+        placeCrystal(cx + ox, cz + oz, k === 0); // 每叢第 1 顆為主晶
+      }
+    }
+
+    /** ===== 2) 岩石（暗鈷藍低矮巨石，散佈於外圍空地補滿空曠感） ===== */
+    const rock = MeshBuilder.CreatePolyhedron('space-rock', { type: 2, size: 0.5 }, scene); // type 2 = 多面塊狀
+    const rockMat = new StandardMaterial('space-rock-mat', scene);
+    rockMat.diffuseColor = new Color3(0.18, 0.24, 0.42); // 受光的暗鈷藍岩
+    rockMat.specularColor = Color3.Black();
+    rock.material = rockMat;
+    rock.isVisible = false;
+    rock.isPickable = false;
+    let rn = 0;
+    for (let gx = -78; gx <= 78; gx += 17) {
+      for (let gz = -78; gz <= 78; gz += 17) {
+        const x = gx + (seeded(gx, gz, 5) - 0.5) * 12;
+        const z = gz + (seeded(gx, gz, 6) - 0.5) * 12;
+        if (blocked(x, z) || seeded(gx, gz, 7) > 0.7) continue; // 約 30% 跳過，避免過密
+        const s = 1.2 + seeded(x, z, 8) * 2.6; // 直徑尺度
+        const inst = rock.createInstance('rock' + rn++);
+        inst.scaling.set(s, s * (0.45 + seeded(x, z, 9) * 0.3), s); // 壓扁成低矮巨石
+        inst.position.set(x, s * 0.18, z);
+        inst.rotation.set(seeded(x, z, 10) * 0.4, seeded(x, z, 11) * Math.PI * 2, seeded(x, z, 12) * 0.4);
+        inst.isPickable = false;
+        inst.freezeWorldMatrix();
+      }
+    }
+
+    /** ===== 3) 巨石碑（外星方尖碑，少量地標；發光邊緣朝天） ===== */
+    const monolithMat = new StandardMaterial('monolith-mat', scene);
+    monolithMat.diffuseColor = new Color3(0.06, 0.09, 0.18); // 近黑石身
+    monolithMat.emissiveColor = new Color3(0.12, 0.5, 0.7); // 自帶幽藍輝光
+    monolithMat.specularColor = Color3.Black();
+    const monoliths: [number, number][] = [[-66, -2], [66, 6], [4, -70], [-22, 58], [40, 50]];
+    monoliths.forEach(([x, z], i) => {
+      if (blocked(x, z)) return;
+      const h = 7 + seeded(x, z, 1) * 4; // 高 7~11
+      const slab = MeshBuilder.CreateBox('monolith' + i, { width: 1.4, height: h, depth: 0.7 }, scene);
+      slab.material = monolithMat;
+      slab.position.set(x, h * 0.5 - 0.3, z);
+      slab.rotation.set((seeded(x, z, 2) - 0.5) * 0.18, seeded(x, z, 3) * Math.PI, 0); // 微傾＋隨機朝向
+      slab.isPickable = false;
+      slab.freezeWorldMatrix();
+    });
   }
 
   async function initAssets() {
@@ -1138,8 +1193,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       await Promise.all([
       loadProp(scene, '/models/winter/meat.glb', MEAT_SIZE),
       loadProp(scene, '/models/winter/gold_bar.glb', BAR_SIZE),
-      loadAnimatedFleet(scene, '/models/chicken_anim.glb', CONFIG.cow.size),
-      /** 牧場2 強化生物：兔子（血量/掉肉加倍）；含 Idle/Walk/Run/Death 動畫 */
+      /** Pasture 1 animal: chicken — rendered smaller than other livestock (0.6× cow size) */
+      loadAnimatedFleet(scene, '/models/chicken_anim.glb', CONFIG.cow.size * 0.6),
+      /** Pasture 2 buffed creature: bunny (2× hp / meat drop); has Idle/Walk/Run/Death anims */
       loadAnimatedFleet(scene, '/models/bunny.glb', CONFIG.cow.size),
       /** 牧羊犬（含 Idle/Walk/Run 動畫） */
       loadAnimatedFleet(scene, '/models/Characters_GermanShepherd.glb', CONFIG.dog.size),
@@ -1147,7 +1203,10 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       loadAnimatedFleet(scene, '/models/Characters_Henry.glb', CONFIG.hunter.size),
       /** 收銀員：壽司兔（含 Idle/Walk/Idle_Holding 等動作） */
       loadAnimatedFleet(scene, '/models/Rabbit_Pink.glb', CONFIG.cashier.size),
-      loadCharacter(scene, '/models/Characters_Shaun_SingleWeapon.glb', CONFIG.player.height),
+      /** 主角：太空人（astronaut.glb）；檔案不存在時自動回退舊角色 Shaun，遊戲不中斷 */
+      (async () =>
+        (await loadCharacter(scene, '/models/astronaut.glb', CONFIG.player.height)) ??
+        loadCharacter(scene, '/models/Characters_Shaun_SingleWeapon.glb', CONFIG.player.height))(),
       loadAnimatedFleet(scene, '/models/customers/Character_Female_1.glb', CONFIG.customer.height),
       loadAnimatedFleet(scene, '/models/customers/Character_Female_2.glb', CONFIG.customer.height),
       loadAnimatedFleet(scene, '/models/customers/Character_Male_1.glb', CONFIG.customer.height),
@@ -1510,7 +1569,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
           fuel = 0;
           if (waveState !== 'lost') {
             waveState = 'lost';
-            floatText.spawn('💀 核心熄滅！', BASE_CX, 9, BASE_CZ, '#ff7070', 2.4);
+            floatText.spawn('💀 The core went dark!', BASE_CX, 9, BASE_CZ, '#ff7070', 2.4);
             sound.boom();
           }
         }
@@ -1943,12 +2002,12 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       }
     }
 
-    /** --- 牧羊犬框：站著付款（進度條），付滿即召喚一隻會撿肉的狗 --- */
-    if (!dogBought) {
+    /** --- Robo-hound station: pay to hire; re-hireable up to DOG_MAX, cost scales per unit --- */
+    if (dogCount < DOG_MAX) {
       const G = CONFIG.dog;
+      const cost = dogCostFor(dogCount);
       if (near(G.x, G.z, 2.0) && money > 0) {
-        const remain = G.cost - dogPaid;
-        const pay = Math.min(remain, money, (G.cost / WEAPON_BUY_TIME) * dt);
+        const pay = Math.min(cost - dogPaid, money, (cost / WEAPON_BUY_TIME) * dt);
         if (pay > 0) {
           dogPaid += pay;
           money -= pay;
@@ -1958,22 +2017,30 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
             spawnPayFly(G.x, G.z);
           }
         }
-        dogStation.setProgress(G.cost > 0 ? dogPaid / G.cost : 1);
-        if (dogPaid >= G.cost - 0.001) {
-          dogBought = true;
-          dogStation.setDone();
+        dogStation.setProgress(cost > 0 ? dogPaid / cost : 1);
+        if (dogPaid >= cost - 0.001) {
+          dogCount++;
+          dogPaid = 0;
           spawnDog();
-          achieve('dog');
+          if (dogCount === 1) achieve('dog');
           sound.upgrade();
+          if (dogCount >= DOG_MAX) {
+            dogStation.setDone();
+          } else {
+            dogStation.setCount(dogCount);
+            dogStation.setCost(dogCostFor(dogCount));
+            dogStation.setProgress(0);
+          }
         }
       }
     }
 
-    /** --- 獵人框：付滿雇用一名自動打怪的獵人 --- */
-    if (!hunterBought) {
+    /** --- Hunter station: pay to hire an auto-hunter; re-hireable up to HUNTER_MAX, cost scales per unit --- */
+    if (hunterCount < HUNTER_MAX) {
       const H = CONFIG.hunter;
+      const cost = hunterCostFor(hunterCount);
       if (near(H.x, H.z, 2.0) && money > 0) {
-        const pay = Math.min(H.cost - hunterPaid, money, (H.cost / WEAPON_BUY_TIME) * dt);
+        const pay = Math.min(cost - hunterPaid, money, (cost / WEAPON_BUY_TIME) * dt);
         if (pay > 0) {
           hunterPaid += pay;
           money -= pay;
@@ -1983,13 +2050,20 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
             spawnPayFly(H.x, H.z);
           }
         }
-        hunterStation.setProgress(H.cost > 0 ? hunterPaid / H.cost : 1);
-        if (hunterPaid >= H.cost - 0.001) {
-          hunterBought = true;
-          hunterStation.setDone();
+        hunterStation.setProgress(cost > 0 ? hunterPaid / cost : 1);
+        if (hunterPaid >= cost - 0.001) {
+          hunterCount++;
+          hunterPaid = 0;
           if (hunterFleet) spawnWorker(hunterFleet, 'hunt');
-          achieve('hunter');
+          if (hunterCount === 1) achieve('hunter');
           sound.upgrade();
+          if (hunterCount >= HUNTER_MAX) {
+            hunterStation.setDone();
+          } else {
+            hunterStation.setCount(hunterCount);
+            hunterStation.setCost(hunterCostFor(hunterCount));
+            hunterStation.setProgress(0);
+          }
         }
       }
     }
@@ -2157,11 +2231,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       c.bubble.setPosition(c.root.position.x, CONFIG.customer.height + 0.7, c.root.position.z);
     }
 
-    /** --- 背後肉堆 + 金條堆（金條疊在肉的後面，數量隨金幣多寡） --- */
+    /** --- 背後肉堆（金條堆已移除：金錢不背在身上） --- */
     backStack.setCount(carried);
     backStack.update(dt, player.position.x, player.position.y, player.position.z, player.rotation.y, moving);
-    goldStack.setCount(Math.min(GOLD_BARS_MAX, Math.floor(money / PAY_PER_BAR)));
-    goldStack.update(dt, player.position.x, player.position.y, player.position.z, player.rotation.y, moving);
 
     /** --- 相機平滑跟隨玩家（爆炸時加上短暫震動） --- */
     const f = Math.min(1, dt * cam.follow);
@@ -2219,13 +2291,13 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         won: waveState === 'won',
         waveLabel:
           waveState === 'won'
-            ? '🏆 救援抵達！撐過 30 個寒夜'
+            ? '🏆 Rescue arrived! Survived 30 cold nights'
             : waveState === 'lost'
-              ? '💀 核心熄滅！'
+              ? '💀 The core went dark!'
               : waveState === 'prep'
-              ? `☀️ 白晝 ${Math.ceil(Math.max(0, waveTimer))}s（下一個寒夜 第${waveNum + 1}夜）`
+              ? `☀️ Day ${Math.ceil(Math.max(0, waveTimer))}s (next cold night: Night ${waveNum + 1})`
               : waveState === 'active'
-                ? `🌙 第 ${waveNum} 夜　剩 ${zombies.filter((z) => z.active).length + zombiesToSpawn + bossToSpawn}${bossToSpawn || zombies.some((z) => z.active && z.isBoss) ? ' 👹' : ''}`
+                ? `🌙 Night ${waveNum}　${zombies.filter((z) => z.active).length + zombiesToSpawn + bossToSpawn} left${bossToSpawn || zombies.some((z) => z.active && z.isBoss) ? ' 👹' : ''}`
                 : '',
         selectedTower:
           selectedPad >= 0 && towerPads[selectedPad]?.built
@@ -2236,8 +2308,8 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
                 /** 目前數值：緩速塔顯示減速%、其餘顯示一次幾發 */
                 const detail =
                   pad.type === 'slow'
-                    ? `減速 ${Math.round((1 - Math.max(0.15, DEF.slow.slowFactor - (pad.level - 1) * 0.05)) * 100)}%`
-                    : `一次 ${Math.max(1, pad.level - 1)} 發`;
+                    ? `slow ${Math.round((1 - Math.max(0.15, DEF.slow.slowFactor - (pad.level - 1) * 0.05)) * 100)}%`
+                    : `${Math.max(1, pad.level - 1)} shots at once`;
                 return { type: pad.type, level: pad.level, maxLevel: DEF.towerMaxLevel, cost, maxed, affordable: money >= cost, detail };
               })()
             : null,
@@ -2301,8 +2373,6 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     pasture2Unlocked = true;
     achieve('pasture2');
     pasture2Holder.setEnabled(true);
-    /** 清掉牧場2 與西側走道範圍內的樹林 */
-    treeField?.hideRegion(-37, -9, -12, 8);
     /** 啟用牧場2 的牛群 */
     for (const c of cows) {
       if (c.pasture !== CONFIG.pasture2 || c.active) continue;
@@ -2457,11 +2527,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     }
   }
 
-  /** 開啟塔防：炸開東側樹林、顯示防禦院子（紅磚牆 + 塔位），並建立殭屍池 */
+  /** 開啟塔防：顯示防禦院子（紅磚牆 + 塔位），並建立殭屍池 */
   function revealHouse() {
     const H = CONFIG.house;
-    const y = H.yard;
-    treeField?.hideRegion(y.minX - 2, y.maxX + 2, y.minZ - 2, y.maxZ + 2);
     houseHolder.setEnabled(true);
     buildZombiePool(); // 此時才實例化殭屍（有 60s 準備期可載入）
     spawnExplosion(H.hx, 1.6, H.hz);
@@ -3044,7 +3112,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         breaches++;
         camShake = Math.max(camShake, 0.6);
         sound.boom();
-        floatText.spawn(`🧟 攻入! ${breaches}/${BREACH_MAX}`, z.x, 4, z.z, '#ff6b6b', 1.4);
+        floatText.spawn(`🧟 Breach! ${breaches}/${BREACH_MAX}`, z.x, 4, z.z, '#ff6b6b', 1.4);
         z.active = false;
         z.alive = false;
         z.root.setEnabled(false);
@@ -3118,14 +3186,14 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         /** 本波清空：給獎勵 */
         const reward = DEF.wave.clearReward + (waveNum - 1) * DEF.wave.rewardPerWave;
         money += reward;
-        floatText.spawn(`熬過第 ${waveNum} 夜 +$${reward}`, BASE_CX, 7, BASE_CZ, '#7cf08a', 1.6);// 夜間倖存獎勵
+        floatText.spawn(`Survived night ${waveNum} +$${reward}`, BASE_CX, 7, BASE_CZ, '#7cf08a', 1.6);// night-survival reward
         if (waveNum >= 10) achieve('wave10');
         if (waveNum >= 20) achieve('wave20');
         if (waveNum >= DEF.winWave) {
           /** 通關！ */
           achieve('win');
           waveState = 'won';
-          floatText.spawn('🏆 救援抵達！撐過 30 個寒夜！', BASE_CX, 9, BASE_CZ, '#ffe066', 2.4);
+          floatText.spawn('🏆 Rescue arrived! Survived 30 cold nights!', BASE_CX, 9, BASE_CZ, '#ffe066', 2.4);
           sound.upgrade();
         } else {
           waveState = 'prep';
@@ -3266,9 +3334,6 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       canvas.removeEventListener('pointerdown', firstTouch);
       canvas.removeEventListener('pointerdown', onTowerPick);
       backStack.mesh.dispose();
-      goldStack.mesh.dispose();
-      treeField?.dispose();
-      treeSource?.dispose();
       dynamiteStation.dispose();
       pasture2Holder.dispose();
       bloodDecals.dispose();
@@ -3333,25 +3398,11 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     setHardwareScaling(level: number) {
       engine.setHardwareScalingLevel(Math.max(0.5, Math.min(3, level)));
     },
-    setTreeLayout(idx: number) {
-      treeLayoutIdx = Math.max(0, Math.min(4, Math.round(idx)));
-      buildTrees();
-    },
-    setGoldLayerH(v: number) {
-      goldStack.setLayerH(v);
-    },
-    setGoldBackOffset(v: number) {
-      goldStack.setBackOffset(v);
-    },
     setCameraRadius(v: number) {
       camera.radius = v;
     },
     setCameraAlpha(v: number) {
       camera.alpha = v;
-    },
-    setTreeCount(v: number) {
-      treeVisible = Math.max(0, Math.min(TREE_MAX, Math.round(v)));
-      applyTreeCount();
     },
     setMoney(v: number) {
       money = Math.max(0, v);
@@ -3637,15 +3688,27 @@ class UpgradeStation {
     this.def = def;
     this.cost = def.cost(0);
 
-    const pad = MeshBuilder.CreateDisc('up-pad', { radius: 1.4, tessellation: 32 }, scene);
+    /** Holographic upgrade pad: translucent dark disc with a faint cyan glow */
+    const pad = MeshBuilder.CreateDisc('up-pad', { radius: 1.4, tessellation: 48 }, scene);
     pad.rotation.x = Math.PI / 2;
     pad.position.set(def.x, 0.04, def.z);
     pad.isPickable = false;
     const padMat = new StandardMaterial('up-pad-mat', scene);
-    padMat.diffuseColor = new Color3(0.95, 0.85, 0.4);
-    padMat.emissiveColor = new Color3(0.5, 0.42, 0.12);
+    padMat.diffuseColor = new Color3(0.04, 0.12, 0.2);
+    padMat.emissiveColor = new Color3(0.07, 0.4, 0.55);
     padMat.specularColor = Color3.Black();
+    padMat.alpha = 0.55;
     pad.material = padMat;
+    /** Bright cyan energy ring around the pad (matches the energy fences) */
+    const ring = MeshBuilder.CreateTorus('up-ring', { diameter: 2.85, thickness: 0.14, tessellation: 48 }, scene);
+    ring.position.set(def.x, 0.06, def.z);
+    ring.isPickable = false;
+    const ringMat = new StandardMaterial('up-ring-mat', scene);
+    ringMat.emissiveColor = new Color3(0.3, 0.85, 1);
+    ringMat.diffuseColor = Color3.Black();
+    ringMat.specularColor = Color3.Black();
+    ringMat.disableLighting = true;
+    ring.material = ringMat;
 
     const plane = MeshBuilder.CreatePlane('up-sign', { width: 2.2, height: 2.0 }, scene);
     plane.position.set(def.x, 2.1, def.z);
@@ -3685,23 +3748,50 @@ class UpgradeStation {
     const W = 256;
     const H = 232;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(20,30,55,0.86)';
-    roundRect(ctx, 6, 6, W - 12, H - 12, 26);
+
+    /** Holographic card: translucent navy body with a glowing cyan/gold border */
+    roundRect(ctx, 12, 10, W - 24, H - 20, 22);
+    const grad = ctx.createLinearGradient(0, 10, 0, H - 10);
+    grad.addColorStop(0, 'rgba(14,30,56,0.9)');
+    grad.addColorStop(1, 'rgba(8,16,34,0.9)');
+    ctx.fillStyle = grad;
     ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = this.maxed ? 'rgba(255,210,74,0.95)' : 'rgba(96,224,255,0.9)';
+    ctx.stroke();
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '78px sans-serif';
-    ctx.fillText(this.def.emoji, W / 2, 64);
-    ctx.font = 'bold 34px sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(this.def.name, W / 2, 120);
-    ctx.font = 'bold 26px sans-serif';
+    /** Emoji + name */
+    ctx.font = '66px sans-serif';
+    ctx.fillText(this.def.emoji, W / 2, 56);
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillStyle = '#eaf6ff';
+    ctx.fillText(this.def.name, W / 2, 104);
+
+    /** Level progress bar (filled fraction = level / maxLevel) */
+    const bx = 36;
+    const by = 128;
+    const bw = W - 72;
+    const bh = 12;
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(ctx, bx, by, bw, bh, 6);
+    ctx.fill();
+    const ratio = this.def.maxLevel > 0 ? this.level / this.def.maxLevel : 0;
+    if (ratio > 0) {
+      ctx.fillStyle = this.maxed ? '#ffd24a' : '#5ad6ff';
+      roundRect(ctx, bx, by, Math.max(bh, bw * ratio), bh, 6);
+      ctx.fill();
+    }
+    ctx.font = 'bold 20px sans-serif';
     ctx.fillStyle = '#9fd3ff';
-    ctx.fillText(`Lv.${this.level}/${this.def.maxLevel}`, W / 2, 158);
-    ctx.font = 'bold 40px sans-serif';
+    ctx.fillText(`Lv.${this.level} / ${this.def.maxLevel}`, W / 2, 162);
+
+    /** Cost / MAX badge */
+    ctx.font = 'bold 36px sans-serif';
     if (this.maxed) {
       ctx.fillStyle = '#ffd24a';
-      ctx.fillText('MAX', W / 2, 200);
+      ctx.fillText('★ MAX', W / 2, 200);
     } else {
       ctx.fillStyle = this.affordable ? '#7cf08a' : '#ff9b9b';
       ctx.fillText(`💰 ${this.cost}`, W / 2, 200);
@@ -3791,7 +3881,7 @@ class WeaponStation {
     if (this.bought) {
       ctx.font = 'bold 42px sans-serif';
       ctx.fillStyle = this.equippedNow ? '#9af0b0' : '#cfe6ff';
-      ctx.fillText(this.equippedNow ? '✓ 裝備中' : '踩上裝備', W / 2, 188);
+      ctx.fillText(this.equippedNow ? '✓ Equipped' : 'Step to equip', W / 2, 188);
     } else {
       /** 價格 */
       ctx.font = 'bold 48px sans-serif';
@@ -3822,6 +3912,8 @@ class BuyStation {
   private progress = 0;
   private done = false;
   private lastDraw = -2;
+  /** How many already hired (shown as a ×N badge); used by re-hireable crew stations */
+  private count = 0;
 
   constructor(
     scene: Scene,
@@ -3863,6 +3955,16 @@ class BuyStation {
     this.progress = 1;
     this.redraw();
   }
+  /** Re-hireable crew: update the displayed cost for the next unit */
+  setCost(c: number) {
+    this.cost = c;
+    this.redraw();
+  }
+  /** Re-hireable crew: update the ×N owned badge */
+  setCount(n: number) {
+    this.count = n;
+    this.redraw();
+  }
   dispose() {
     this.tex.dispose();
   }
@@ -3882,6 +3984,14 @@ class BuyStation {
     ctx.textBaseline = 'middle';
     ctx.font = '74px sans-serif';
     ctx.fillText(this.emoji, W / 2, 56);
+    /** Owned-count badge (top-right), for re-hireable crew stations */
+    if (this.count > 0) {
+      ctx.font = 'bold 34px sans-serif';
+      ctx.fillStyle = '#9af0b0';
+      ctx.textAlign = 'right';
+      ctx.fillText(`×${this.count}`, W - 26, 42);
+      ctx.textAlign = 'center';
+    }
     /** 名稱 + 一句效果（讓人看懂功用） */
     ctx.font = 'bold 38px sans-serif';
     ctx.fillStyle = '#ffffff';
@@ -3896,7 +4006,7 @@ class BuyStation {
     } else {
       ctx.font = 'bold 42px sans-serif';
       ctx.fillStyle = '#ffd24a';
-      ctx.fillText(this.requireMode ? `需💰${this.cost}` : `💰${this.cost}`, W / 2, 184);
+      ctx.fillText(this.requireMode ? `Need 💰${this.cost}` : `💰${this.cost}`, W / 2, 184);
       const ix = 34;
       const iy = 212;
       const iw = W - 68;

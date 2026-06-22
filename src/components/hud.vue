@@ -1,5 +1,5 @@
 <template>
-  <!-- 右上：金錢大膠囊（手機主視覺，參考熱門遊戲） -->
+  <!-- Top-right: large money capsule (primary mobile readout) -->
   <div
     class="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-slate-900/60 px-3 py-1.5 shadow-lg shadow-cyan-500/10 ring-2 ring-cyan-300/30 backdrop-blur-md sm:gap-2 sm:px-4 sm:py-2"
     :style="safeTop"
@@ -10,9 +10,9 @@
     </span>
   </div>
 
-  <!-- 左上：狀態 chips（血量改顯示在玩家頭頂） -->
+  <!-- Top-left: status chips (HP is shown above the player's head instead) -->
   <div class="absolute left-3 top-[4.5rem] z-10 flex flex-col items-start gap-2">
-    <!-- 狀態 chips -->
+    <!-- Status chips -->
     <div class="flex flex-wrap gap-2 text-sm sm:text-base">
       <span class="rounded-xl bg-slate-900/55 px-3 py-1.5 font-black text-rose-200 backdrop-blur-md ring-1 ring-cyan-200/15">
         🎒 {{ stats.carried }}
@@ -32,7 +32,7 @@
     </div>
   </div>
 
-  <!-- 房子防禦戰：上方波次提示 + 房子血條 -->
+  <!-- Defense battle: wave label + core breach bar -->
   <div
     v-if="stats.defenseActive"
     class="absolute left-1/2 top-32 z-20 flex -translate-x-1/2 flex-col items-center gap-1"
@@ -51,7 +51,7 @@
       </div>
       <span class="text-xs font-black text-rose-200">{{ stats.breaches }}/{{ stats.breachMax }}</span>
     </div>
-    <!-- 聖火燃料條：夜晚才消耗，站火旁用金幣添柴 -->
+    <!-- Bonfire fuel bar: drains at night; refuel with coins beside the fire -->
     <div class="flex items-center gap-2">
       <span class="text-lg">🔥</span>
       <div class="h-3.5 w-44 overflow-hidden rounded-full bg-slate-900/55 ring-1 ring-amber-200/20 sm:w-56">
@@ -64,16 +64,16 @@
       <span class="text-xs font-black text-amber-200">{{ stats.fuel }}</span>
     </div>
     <div v-if="stats.cold" class="rounded-lg bg-sky-500/20 px-2.5 py-1 text-xs font-black text-sky-200 ring-1 ring-sky-300/30">
-      🥶 受寒減速・回核心旁取暖
+      🥶 Freezing — slowed. Warm up by the core
     </div>
   </div>
 
-  <!-- 防線告急：攻入達 8/10 起，畫面邊緣脈動泛紅警告 -->
+  <!-- Defense critical: from 8/10 breaches, pulse a red vignette warning -->
   <div v-if="stats.defenseActive && breachRatio >= 0.8" class="breach-warn pointer-events-none absolute inset-0 z-30" />
-  <!-- 受寒：畫面邊緣泛藍 -->
+  <!-- Freezing: blue vignette around the screen edge -->
   <div v-if="stats.cold" class="cold-warn pointer-events-none absolute inset-0 z-20" />
 
-  <!-- 升級提示（站上升級地墊時，加大字級給手機看） -->
+  <!-- Upgrade prompt (shown larger for mobile when standing on an upgrade pad) -->
   <div
     v-if="stats.nearUpgrade"
     class="pointer-events-none absolute bottom-32 left-1/2 z-20 -translate-x-1/2 rounded-2xl bg-slate-950/80 px-6 py-3.5 text-center text-white shadow-2xl ring-1 ring-cyan-200/20 backdrop-blur-md"
@@ -82,18 +82,18 @@
       {{ stats.nearUpgrade.emoji }} {{ stats.nearUpgrade.name }}
       <span class="ml-1 text-base text-cyan-300">Lv.{{ stats.nearUpgrade.level }}/{{ stats.nearUpgrade.maxLevel }}</span>
     </div>
-    <div v-if="stats.nearUpgrade.maxed" class="mt-1 text-base font-black text-amber-300">已滿級 ✦</div>
+    <div v-if="stats.nearUpgrade.maxed" class="mt-1 text-base font-black text-amber-300">Max level ✦</div>
     <div
       v-else
       class="mt-1 text-base font-bold"
       :class="stats.nearUpgrade.affordable ? 'text-emerald-300' : 'text-rose-300'"
     >
-      站著不動升級　💰 {{ stats.nearUpgrade.cost }}
-      <span v-if="!stats.nearUpgrade.affordable">（錢不夠）</span>
+      Stand still to upgrade　💰 {{ stats.nearUpgrade.cost }}
+      <span v-if="!stats.nearUpgrade.affordable">(not enough coins)</span>
     </div>
   </div>
 
-  <!-- 靠近功能框：說明卡（解決看不懂地上圖案） -->
+  <!-- Near a station: info card (explains the ground icons) -->
   <div
     v-if="stats.nearInfo && !stats.nearUpgrade && !stats.selectedTower"
     class="pointer-events-none absolute bottom-32 left-1/2 z-20 -translate-x-1/2 rounded-2xl bg-slate-950/80 px-6 py-3 text-center text-white shadow-2xl ring-1 ring-cyan-200/20 backdrop-blur-md"
@@ -111,7 +111,7 @@ import type { GameStats } from '../game/game';
 const props = defineProps<{ stats: GameStats }>();
 const breachRatio = computed(() => (props.stats.breachMax > 0 ? Math.max(0, Math.min(1, props.stats.breaches / props.stats.breachMax)) : 0));
 const fuelRatio = computed(() => (props.stats.fuelMax > 0 ? Math.max(0, Math.min(1, props.stats.fuel / props.stats.fuelMax)) : 0));
-/** 避開瀏海/動態島 */
+/** Avoid the notch / Dynamic Island */
 const safeTop = { top: 'max(0.75rem, env(safe-area-inset-top))' };
 </script>
 

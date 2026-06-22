@@ -9,28 +9,28 @@ import {
 } from '@babylonjs/core';
 import { CONFIG } from './config';
 
-/** 雪原地面材質：高解析、多種隨機元素（雪丘陰影、腳印、裂冰），降低平鋪重複感 */
-function snowMaterial(scene: Scene): StandardMaterial {
+/** 外星地表材質：深鈷藍岩質地殼，含礦物斑點、龜裂與隕石坑，降低平鋪重複感 */
+function soilMaterial(scene: Scene): StandardMaterial {
   const px = 1024;
   const tex = new DynamicTexture('ground-tex', px, scene, false);
   const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
 
-  /** 底色：近白的雪 */
-  ctx.fillStyle = '#e9eef6';
+  /** 底色：深鈷藍外星土 */
+  ctx.fillStyle = '#16244a';
   ctx.fillRect(0, 0, px, px);
 
-  /** 雪丘明暗補丁（冷藍陰影 / 亮白堆雪，打破單一色塊） */
+  /** 岩層明暗補丁（更深的藍黑陰影 / 偏亮的鈷藍隆起，打破單一色塊） */
   for (let k = 0; k < 16; k++) {
     const bx = Math.random() * px;
     const by = Math.random() * px;
     const r = 60 + Math.random() * 180;
     const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
     if (Math.random() > 0.5) {
-      g.addColorStop(0, 'rgba(255,255,255,0.5)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
+      g.addColorStop(0, 'rgba(60,95,170,0.40)');
+      g.addColorStop(1, 'rgba(60,95,170,0)');
     } else {
-      g.addColorStop(0, 'rgba(150,175,210,0.28)');
-      g.addColorStop(1, 'rgba(150,175,210,0)');
+      g.addColorStop(0, 'rgba(8,14,32,0.45)');
+      g.addColorStop(1, 'rgba(8,14,32,0)');
     }
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -38,15 +38,15 @@ function snowMaterial(scene: Scene): StandardMaterial {
     ctx.fill();
   }
 
-  /** 顆粒雜訊（雪粒閃爍感） */
+  /** 礦物斑點（青藍/冷白晶體微光，星塵感） */
   for (let i = 0; i < 9000; i++) {
-    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.5)' : 'rgba(150,170,200,0.12)';
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(120,200,255,0.30)' : 'rgba(10,18,40,0.40)';
     ctx.fillRect(Math.random() * px, Math.random() * px, 2, 2);
   }
 
-  /** 裂冰（藍灰鋸齒分支） */
-  ctx.strokeStyle = 'rgba(120,150,190,0.35)';
-  for (let k = 0; k < 9; k++) {
+  /** 地殼龜裂（更深的藍黑鋸齒分支，岩石裂縫） */
+  ctx.strokeStyle = 'rgba(6,10,26,0.55)';
+  for (let k = 0; k < 12; k++) {
     let x = Math.random() * px;
     let y = Math.random() * px;
     ctx.beginPath();
@@ -56,23 +56,24 @@ function snowMaterial(scene: Scene): StandardMaterial {
       y += (Math.random() - 0.5) * 160;
       ctx.lineTo(x, y);
     }
-    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.lineWidth = 1 + Math.random() * 2.5;
     ctx.stroke();
   }
 
-  /** 踩出的腳印（成對橢圓凹陷，隨機方向成串） */
-  for (let k = 0; k < 10; k++) {
-    ctx.save();
-    ctx.translate(Math.random() * px, Math.random() * px);
-    ctx.rotate(Math.random() * Math.PI);
-    ctx.fillStyle = 'rgba(120,145,185,0.22)';
-    for (let d = 0; d < 4; d++) {
-      const off = (d % 2) * 14 - 7;
-      ctx.beginPath();
-      ctx.ellipse(off, d * 26, 7, 11, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
+  /** 隕石坑（暗環＋亮緣，散落的衝擊坑） */
+  for (let k = 0; k < 14; k++) {
+    const cx = Math.random() * px;
+    const cy = Math.random() * px;
+    const cr = 8 + Math.random() * 26;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6,10,24,0.35)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(90,140,210,0.30)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
 
   tex.update();
@@ -84,17 +85,17 @@ function snowMaterial(scene: Scene): StandardMaterial {
   const material = new StandardMaterial('ground-material', scene);
   material.diffuseTexture = tex;
   material.specularColor = Color3.Black();
-  /** 異星藍：冷色調染整片雪原（與大氣/霧一致） */
-  material.diffuseColor = new Color3(0.62, 0.78, 1.0);
+  /** 深鈷藍：冷色調染整片外星地表（與太空背景/霧一致） */
+  material.diffuseColor = new Color3(0.34, 0.46, 0.78);
   return material;
 }
 
-/** 建立平整雪原地面。 */
+/** 建立平整外星地表。 */
 export function createTerrain(scene: Scene): Mesh {
   // 須涵蓋殭屍生成的東側角落（x 最遠約 66）→ 半徑需 ≥ 66
   const size = CONFIG.arenaHalf * 13;
   const ground = MeshBuilder.CreateGround('ground', { width: size, height: size }, scene);
-  ground.material = snowMaterial(scene);
+  ground.material = soilMaterial(scene);
   ground.isPickable = false;
   return ground;
 }

@@ -82,13 +82,13 @@ interface MusicTrack {
   base: number; // 根音 MIDI
   chords: number[][]; // 每小節和弦（相對 base 的半音）
 }
-/** 順序＝下拉選單由上到下；和弦以三/四音表示，引擎做琶音 */
+/** Order = top-to-bottom in the dropdown; chords are 3/4 notes, the engine arpeggiates them */
 const MUSIC_TRACKS: MusicTrack[] = [
-  { name: '輕快', bpm: 120, bass: 'triangle', lead: 'triangle', base: 57, chords: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]] },
-  { name: '悠閒', bpm: 80, bass: 'sine', lead: 'sine', base: 60, chords: [[0, 4, 7, 11], [5, 9, 12], [-3, 0, 4], [-5, 0, 3, 7]] },
-  { name: '歡樂', bpm: 138, bass: 'square', lead: 'square', base: 60, chords: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]] },
-  { name: '緊張', bpm: 150, bass: 'sawtooth', lead: 'sawtooth', base: 50, chords: [[0, 3, 7], [-2, 1, 5], [-4, 0, 3], [0, 3, 7]] },
-  { name: '神秘', bpm: 72, bass: 'triangle', lead: 'sine', base: 55, chords: [[0, 3, 7, 10], [5, 8, 12], [3, 7, 10], [-2, 2, 5]] },
+  { name: 'Upbeat', bpm: 120, bass: 'triangle', lead: 'triangle', base: 57, chords: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]] },
+  { name: 'Relaxed', bpm: 80, bass: 'sine', lead: 'sine', base: 60, chords: [[0, 4, 7, 11], [5, 9, 12], [-3, 0, 4], [-5, 0, 3, 7]] },
+  { name: 'Cheerful', bpm: 138, bass: 'square', lead: 'square', base: 60, chords: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]] },
+  { name: 'Tense', bpm: 150, bass: 'sawtooth', lead: 'sawtooth', base: 50, chords: [[0, 3, 7], [-2, 1, 5], [-4, 0, 3], [0, 3, 7]] },
+  { name: 'Mysterious', bpm: 72, bass: 'triangle', lead: 'sine', base: 55, chords: [[0, 3, 7, 10], [5, 8, 12], [3, 7, 10], [-2, 2, 5]] },
 ];
 
 let musicTimer: number | null = null;
