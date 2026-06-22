@@ -20,14 +20,15 @@
       <span class="rounded-xl bg-slate-900/55 px-3 py-1.5 font-black text-amber-200 backdrop-blur-md ring-1 ring-cyan-200/15">
         🥩 {{ stats.counterMeat }}
       </span>
-      <span class="rounded-xl bg-slate-900/55 px-3 py-1.5 font-black text-sky-200 backdrop-blur-md ring-1 ring-cyan-200/15">
-        {{ stats.weaponEmoji }} {{ stats.weaponName }}
-      </span>
+      <!-- Uncollected sales sitting at the register — go pick it up (pulses to draw the eye) -->
       <span
         v-if="stats.cashPending > 0"
-        class="rounded-xl bg-emerald-600/70 px-3 py-1.5 font-black text-white backdrop-blur-md ring-1 ring-white/20"
+        class="rounded-xl bg-amber-500/25 px-3 py-1.5 font-black text-amber-100 backdrop-blur-md ring-1 ring-amber-300/45 animate-pulse"
       >
-        💵 {{ stats.cashPending }}
+        🪙 +{{ stats.cashPending }}
+      </span>
+      <span class="rounded-xl bg-slate-900/55 px-3 py-1.5 font-black text-sky-200 backdrop-blur-md ring-1 ring-cyan-200/15">
+        {{ stats.weaponEmoji }} {{ stats.weaponName }}
       </span>
     </div>
   </div>

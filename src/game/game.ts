@@ -287,6 +287,7 @@ interface Dog {
   state: 'seek' | 'deliver'; // 找肉 / 送回攤位
   target: Drop | null;
   carry: number; // 目前背上的肉片數（0~carryMax，背上越疊越高）
+  home: Region; // assigned pasture — prioritises meat dropped there so dogs spread out
 }
 
 /** 自動化員工（獵人＝自動打怪；收銀員＝自動收錢） */
@@ -304,6 +305,7 @@ interface Worker {
   target: Cow | null; // 獵人目標
   attackAccum: number; // 攻擊計時
   attackTimer: number; // 攻擊動畫殘留
+  home: Region; // assigned pasture — hunts here first so hunters spread out
 }
 
 /** 殭屍（防禦戰：從東門湧入、走向房子攻擊房子血量） */
@@ -444,6 +446,50 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   makeSign(scene, '🐄 Pasture 2', CONFIG.pasture2.cx, 2.6, CONFIG.pasture2.cz + CONFIG.pasture2.halfZ - 0.5).parent =
     pasture2Holder;
 
+  /** ===== Extra pastures (3 & 4): each blast-unlocked, tougher creatures; data-driven, same pattern as pasture 2 ===== */
+  interface MorePasture {
+    region: Region;
+    holder: TransformNode;
+    station: BuyStation;
+    cost: number;
+    sx: number; // blast station position
+    sz: number;
+    paid: number;
+    unlocked: boolean;
+    hpMul: number;
+    meatMul: number;
+    sign: string;
+    gaps: FenceGap[]; // this pasture's own fence gaps
+    corridor: [number, number, number, number]; // legal walk corridor added to clampPlayer once unlocked
+    rect: [number, number, number, number]; // legal pasture rect added to clampPlayer once unlocked
+    blast: [number, number][]; // explosion FX points on reveal
+  }
+  const makeMorePasture = (
+    region: Region, sx: number, sz: number, cost: number, hpMul: number, meatMul: number,
+    sign: string, gaps: FenceGap[], corridor: [number, number, number, number], blast: [number, number][],
+  ): MorePasture => {
+    const holder = new TransformNode(sign, scene);
+    holder.setEnabled(false);
+    makeSign(scene, `🐄 ${sign}`, region.cx, 2.6, region.cz + region.halfZ - 0.5).parent = holder;
+    const station = new BuyStation(scene, sx, sz, cost, '🧨', 'Energy Blast', `Blast open ${sign}`, `${sign} opened`);
+    return {
+      region, holder, station, cost, sx, sz, paid: 0, unlocked: false, hpMul, meatMul, sign, gaps, corridor,
+      rect: [region.cx - region.halfX + 0.8, region.cx + region.halfX - 0.8, region.cz - region.halfZ + 0.8, region.cz + region.halfZ - 0.8],
+      blast,
+    };
+  };
+  const P3 = CONFIG.pasture3;
+  const P4 = CONFIG.pasture4;
+  const morePastures: MorePasture[] = [
+    // Pasture 3: north of pasture 1; station sits inside pasture 1 (reachable from the start).
+    // Corridor z overlaps both pasture rects (which are inset 0.8) so the passage isn't blocked.
+    makeMorePasture(P3, 7, -25, 1500, 3, 3, 'Pasture 3', [{ side: 'south', center: 0, half: 3 }],
+      [-2.6, 2.6, P3.cz + P3.halfZ - 1.2, CONFIG.pasture.cz - CONFIG.pasture.halfZ + 1.2], [[0, -32], [0, -34]]),
+    // Pasture 4: west of pasture 2; station sits inside pasture 2 (needs pasture 2 first).
+    makeMorePasture(P4, -30, 3, 3000, 4, 4, 'Pasture 4', [{ side: 'east', center: -2, half: 3 }],
+      [P4.cx + P4.halfX - 1.2, CONFIG.pasture2.cx - CONFIG.pasture2.halfX + 1.2, -5, 1], [[-36, -2], [-38, -2]]),
+  ];
+
   /**
    * ===== 圍欄（外太空：發光能量護欄，取代原木柵） =====
    * 不載入木柵模型；改用程序化柱+橫桿（fenceSeg 的 fallback），套上自發光青藍材質。
@@ -455,8 +501,18 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   fenceMat.disableLighting = true; // 不受光，均勻發光，於深空背景中突出
   function setupFences() {
     buildShopFence(scene, null, fenceMat);
-    buildPastureFence(scene, null, fenceMat, CONFIG.pasture, [{ side: 'south', center: CONFIG.pasture.cx, half: 3 }]);
-    buildPastureFence(scene, null, fenceMat, CONFIG.pasture2, [{ side: 'east', center: -7, half: 3 }], pasture2Holder);
+    /** Pasture 1: south gap → shop, north gap → pasture 3 */
+    buildPastureFence(scene, null, fenceMat, CONFIG.pasture, [
+      { side: 'south', center: CONFIG.pasture.cx, half: 3 },
+      { side: 'north', center: 0, half: 3 },
+    ]);
+    /** Pasture 2: east gap → shop, west gap → pasture 4 */
+    buildPastureFence(scene, null, fenceMat, CONFIG.pasture2, [
+      { side: 'east', center: -7, half: 3 },
+      { side: 'west', center: -2, half: 3 },
+    ], pasture2Holder);
+    /** Extra pastures: build each fence on its (hidden) holder */
+    for (const mp of morePastures) buildPastureFence(scene, null, fenceMat, mp.region, mp.gaps, mp.holder);
   }
   setupFences();
 
@@ -477,6 +533,8 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   const dogStation = new BuyStation(scene, CONFIG.dog.x, CONFIG.dog.z, CONFIG.dog.cost, '🤖', 'Robo-Hound', 'Auto-fetches meat to base', 'Crew full');
   let dogPaid = 0;
   let dogCount = 0;
+  /** Must step off the pad before buying another (prevents chain-buying the whole crew at once) */
+  let dogArmed = true;
   const dogs: Dog[] = [];
   let dogFleet: AnimatedFleet | null = null;
 
@@ -485,11 +543,20 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   const cashierStation = new BuyStation(scene, CONFIG.cashier.x, CONFIG.cashier.z, CONFIG.cashier.cost, '🧑‍💼', 'Quartermaster', 'Auto-collects coins', 'Hired');
   let hunterPaid = 0;
   let hunterCount = 0;
+  /** Must step off the pad before hiring another hunter */
+  let hunterArmed = true;
   let cashierPaid = 0;
   let cashierBought = false;
   const workers: Worker[] = [];
   let hunterFleet: AnimatedFleet | null = null;
   let cashierFleet: AnimatedFleet | null = null;
+
+  /** Robotic skin: overrides the dog/hunter meshes so they read as machines (dark steel + metal sheen + faint tech glow) */
+  const robotMat = new StandardMaterial('robot-skin', scene);
+  robotMat.diffuseColor = new Color3(0.22, 0.27, 0.36);
+  robotMat.specularColor = new Color3(0.7, 0.85, 1.0);
+  robotMat.specularPower = 64;
+  robotMat.emissiveColor = new Color3(0.05, 0.13, 0.22);
 
   /** ===== 房子（牧場2 對面，買下後炸地長出 + 紅磚圍牆院子） ===== */
   const houseStation = new BuyStation(scene, CONFIG.house.x, CONFIG.house.z, CONFIG.house.cost, '🔥', 'Activate Core', 'Aliens attack — defend the core', 'Core online', true);
@@ -503,6 +570,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
   };
   const infoPoints: { x: number; z: number; emoji: string; name: string; effect: string; hint: string }[] = [
     { x: CONFIG.dynamite.x, z: CONFIG.dynamite.z, emoji: '🧨', name: 'Energy Blast', effect: 'Blast open Hunting Ground 2 (buffed creatures: 2× meat, 2× hp)', hint: 'Stand and pay to detonate' },
+    ...morePastures.map((mp) => ({ x: mp.sx, z: mp.sz, emoji: '🧨', name: `Open ${mp.sign}`, effect: `Blast open ${mp.sign} (${mp.hpMul}× hp, ${mp.meatMul}× meat)`, hint: 'Stand and pay to detonate' })),
     { x: CONFIG.dog.x, z: CONFIG.dog.z, emoji: '🤖', name: 'Robo-Hound', effect: 'Auto-fetches dropped meat back to base', hint: 'Stand and pay to deploy' },
     { x: CONFIG.hunter.x, z: CONFIG.hunter.z, emoji: '🔫', name: 'Frontier Hunter', effect: 'Auto-enters the hunting ground to hunt for meat', hint: 'Stand and pay to hire' },
     { x: CONFIG.cashier.x, z: CONFIG.cashier.z, emoji: '🧑‍💼', name: 'Quartermaster', effect: 'Auto-collects coins', hint: 'Stand and pay to hire' },
@@ -1087,15 +1155,17 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     const M = 5;
     const a = CONFIG.arenaHalf;
     const yd = CONFIG.house.yard;
-    const P1 = CONFIG.pasture;
-    const P2 = CONFIG.pasture2;
     const inRect = (x: number, z: number, minX: number, maxX: number, minZ: number, maxZ: number) =>
       x > minX - M && x < maxX + M && z > minZ - M && z < maxZ + M;
+    const inRegion = (x: number, z: number, r: Region) =>
+      inRect(x, z, r.cx - r.halfX, r.cx + r.halfX, r.cz - r.halfZ, r.cz + r.halfZ);
     const blocked = (x: number, z: number) =>
       inRect(x, z, -a, a, -a, a) ||
       inRect(x, z, yd.minX, yd.maxX, yd.minZ, yd.maxZ) ||
-      inRect(x, z, P1.cx - P1.halfX, P1.cx + P1.halfX, P1.cz - P1.halfZ, P1.cz + P1.halfZ) ||
-      inRect(x, z, P2.cx - P2.halfX, P2.cx + P2.halfX, P2.cz - P2.halfZ, P2.cz + P2.halfZ);
+      inRegion(x, z, CONFIG.pasture) ||
+      inRegion(x, z, CONFIG.pasture2) ||
+      inRegion(x, z, CONFIG.pasture3) ||
+      inRegion(x, z, CONFIG.pasture4);
 
     /** ===== 1) 發光水晶（八面體晶體，兩色，instance 複製） ===== */
     const makeCrystal = (id: string, color: Color3) => {
@@ -1344,11 +1414,14 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         }
         cows.push(c);
       };
-      /** 牧場1：開局即有（普通牛）；牧場2：Mako 怪物，血量×2、掉肉×2，先隱藏待解鎖 */
+      /** Pasture 1: live from the start (normal chickens). Pasture 2+: buffed creatures, hidden until unlocked */
       const monsterFleet = makoFleet ?? cowFleet;
       for (let i = 0; i < CONFIG.cow.count; i++) makeCow(cowFleet, CONFIG.pasture, true, CONFIG.cow.hp, CONFIG.cow.meatYield);
       for (let i = 0; i < CONFIG.cow.count; i++)
         makeCow(monsterFleet, CONFIG.pasture2, false, CONFIG.cow.hp * 2, CONFIG.cow.meatYield * 2);
+      for (const mp of morePastures)
+        for (let i = 0; i < CONFIG.cow.count; i++)
+          makeCow(monsterFleet, mp.region, false, CONFIG.cow.hp * mp.hpMul, CONFIG.cow.meatYield * mp.meatMul);
     }
 
     if (hero) {
@@ -2002,11 +2075,35 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       }
     }
 
+    /** --- Extra pasture blast stations: stand and pay to blast each one open --- */
+    for (const mp of morePastures) {
+      if (mp.unlocked) continue;
+      if (near(mp.sx, mp.sz, 2.0) && money > 0) {
+        const pay = Math.min(mp.cost - mp.paid, money, (mp.cost / WEAPON_BUY_TIME) * dt);
+        if (pay > 0) {
+          mp.paid += pay;
+          money -= pay;
+          payFlyAccum += pay;
+          while (payFlyAccum >= PAY_PER_BAR) {
+            payFlyAccum -= PAY_PER_BAR;
+            spawnPayFly(mp.sx, mp.sz);
+          }
+        }
+        mp.station.setProgress(mp.cost > 0 ? mp.paid / mp.cost : 1);
+        if (mp.paid >= mp.cost - 0.001) {
+          mp.station.setDone();
+          revealMorePasture(mp);
+        }
+      }
+    }
+
     /** --- Robo-hound station: pay to hire; re-hireable up to DOG_MAX, cost scales per unit --- */
     if (dogCount < DOG_MAX) {
       const G = CONFIG.dog;
       const cost = dogCostFor(dogCount);
-      if (near(G.x, G.z, 2.0) && money > 0) {
+      const onDogPad = near(G.x, G.z, 2.0);
+      if (!onDogPad) dogArmed = true; // stepped off → ready to buy the next one
+      if (onDogPad && dogArmed && money > 0) {
         const pay = Math.min(cost - dogPaid, money, (cost / WEAPON_BUY_TIME) * dt);
         if (pay > 0) {
           dogPaid += pay;
@@ -2021,6 +2118,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         if (dogPaid >= cost - 0.001) {
           dogCount++;
           dogPaid = 0;
+          dogArmed = false; // require stepping off the pad before the next hire
           spawnDog();
           if (dogCount === 1) achieve('dog');
           sound.upgrade();
@@ -2039,7 +2137,9 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     if (hunterCount < HUNTER_MAX) {
       const H = CONFIG.hunter;
       const cost = hunterCostFor(hunterCount);
-      if (near(H.x, H.z, 2.0) && money > 0) {
+      const onHunterPad = near(H.x, H.z, 2.0);
+      if (!onHunterPad) hunterArmed = true; // stepped off → ready to hire the next one
+      if (onHunterPad && hunterArmed && money > 0) {
         const pay = Math.min(cost - hunterPaid, money, (cost / WEAPON_BUY_TIME) * dt);
         if (pay > 0) {
           hunterPaid += pay;
@@ -2054,6 +2154,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
         if (hunterPaid >= cost - 0.001) {
           hunterCount++;
           hunterPaid = 0;
+          hunterArmed = false; // require stepping off the pad before the next hire
           if (hunterFleet) spawnWorker(hunterFleet, 'hunt');
           if (hunterCount === 1) achieve('hunter');
           sound.upgrade();
@@ -2399,6 +2500,34 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     sound.boom();
   }
 
+  /** Blast open an extra pasture (3/4): show its fence/sign, activate its hidden creatures, FX */
+  function revealMorePasture(mp: MorePasture) {
+    if (mp.unlocked) return;
+    mp.unlocked = true;
+    mp.holder.setEnabled(true);
+    for (const c of cows) {
+      if (c.pasture !== mp.region || c.active) continue;
+      c.active = true;
+      const [x, z] = randPasture(c.pasture);
+      const [tx, tz] = randPasture(c.pasture);
+      c.x = x;
+      c.z = z;
+      c.tx = tx;
+      c.tz = tz;
+      c.hp = c.hpMax;
+      c.alive = true;
+      c.dying = 0;
+      c.respawn = 0;
+      c.root.setEnabled(true);
+      c.idle?.start(true);
+      c.animState = 'idle';
+      applyCow(c);
+    }
+    for (const [bx, bz] of mp.blast) spawnExplosion(bx, 1.5, bz);
+    camShake = 1;
+    sound.boom();
+  }
+
   /** 沿院子周邊砌兩層紅磚（西側留缺口對齊走道），掛在 houseHolder 上 */
   function buildBrickYard(brick: Mesh, parent: TransformNode) {
     const { minX, maxX, minZ, maxZ } = CONFIG.house.yard;
@@ -2552,6 +2681,30 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     else dog.idle?.start(true);
   }
 
+  /** Unlocked pastures right now (pasture 1 always; 2/3/4 once blasted open) */
+  const unlockedPastures = (): Region[] => [
+    CONFIG.pasture,
+    ...(pasture2Unlocked ? [CONFIG.pasture2] : []),
+    ...morePastures.filter((mp) => mp.unlocked).map((mp) => mp.region),
+  ];
+  /** Pick the least-crowded unlocked pasture so dogs/hunters spread out instead of clumping */
+  const pickHome = (taken: Region[]): Region => {
+    const ps = unlockedPastures();
+    let best = ps[0];
+    let bestN = Infinity;
+    for (const p of ps) {
+      const n = taken.reduce((s, h) => s + (h === p ? 1 : 0), 0);
+      if (n < bestN) {
+        bestN = n;
+        best = p;
+      }
+    }
+    return best;
+  };
+  /** Is a point inside a pasture region (with a small buffer)? */
+  const inPasture = (x: number, z: number, r: Region) =>
+    x > r.cx - r.halfX - 1 && x < r.cx + r.halfX + 1 && z > r.cz - r.halfZ - 1 && z < r.cz + r.halfZ + 1;
+
   /** 召喚一隻牧羊犬（從 dogFleet 複製一份帶動畫的副本） */
   function spawnDog() {
     if (!dogFleet) return;
@@ -2559,7 +2712,13 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     const holder = new TransformNode(`dog${dogs.length}`, scene);
     (ent.rootNodes[0] as TransformNode).parent = holder;
     holder.scaling.setAll(dogFleet.scale);
-    ent.rootNodes.forEach((n) => (n as TransformNode).getChildMeshes?.().forEach((m) => (m.isPickable = false)));
+    /** Robo-hound: hide pickability and paint every mesh with the robot skin */
+    ent.rootNodes.forEach((n) =>
+      (n as TransformNode).getChildMeshes?.().forEach((m) => {
+        m.isPickable = false;
+        m.material = robotMat;
+      }),
+    );
     const g = ent.animationGroups;
     g.forEach((ag) => ag.stop());
     const walk = g.find((ag) => /^walk$/i.test(ag.name)) ?? g.find((ag) => /walk|run/i.test(ag.name));
@@ -2581,6 +2740,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       state: 'seek',
       target: null,
       carry: 0,
+      home: pickHome(dogs.map((d) => d.home)),
     });
   }
 
@@ -2596,16 +2756,27 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       let tx = dog.x;
       let tz = dog.z;
       if (dog.state === 'seek') {
-        /** 目標若已被撿走（玩家或別隻狗），重找最近的 */
+        /** Target taken (by player or another dog) → repick. Prefer meat in this dog's home pasture so dogs spread out */
         if (!dog.target || !dog.target.active) {
           dog.target = null;
           let bd = Infinity;
           for (const dr of drops) {
-            if (!dr.active) continue;
+            if (!dr.active || !inPasture(dr.x, dr.z, dog.home)) continue;
             const q = (dr.x - dog.x) ** 2 + (dr.z - dog.z) ** 2;
             if (q < bd) {
               bd = q;
               dog.target = dr;
+            }
+          }
+          /** Nothing in the home pasture → fall back to the nearest meat anywhere */
+          if (!dog.target) {
+            for (const dr of drops) {
+              if (!dr.active) continue;
+              const q = (dr.x - dog.x) ** 2 + (dr.z - dog.z) ** 2;
+              if (q < bd) {
+                bd = q;
+                dog.target = dr;
+              }
             }
           }
         }
@@ -2684,7 +2855,13 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
     const holder = new TransformNode(`worker_${role}${i}`, scene);
     (ent.rootNodes[0] as TransformNode).parent = holder;
     holder.scaling.setAll(fleet.scale);
-    ent.rootNodes.forEach((n) => (n as TransformNode).getChildMeshes?.().forEach((m) => (m.isPickable = false)));
+    /** Hunters are robots → paint with the robot skin; the cashier (quartermaster) stays human */
+    ent.rootNodes.forEach((n) =>
+      (n as TransformNode).getChildMeshes?.().forEach((m) => {
+        m.isPickable = false;
+        if (role === 'hunt') m.material = robotMat;
+      }),
+    );
     const g = ent.animationGroups;
     g.forEach((ag) => ag.stop());
     const walk = g.find((ag) => /^walk$/i.test(ag.name)) ?? g.find((ag) => /walk|run/i.test(ag.name));
@@ -2694,8 +2871,10 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       role === 'hunt'
         ? (g.find((ag) => /^sword$|slash|^stab$|attack/i.test(ag.name)) ?? g.find((ag) => /punch/i.test(ag.name)))
         : (g.find((ag) => /idle_holding|assembly_loop|pan_loop|chop_loop|holding/i.test(ag.name)) ?? idle);
-    const sx = role === 'hunt' ? 0 : CONFIG.cash.x - 1.5;
-    const sz = role === 'hunt' ? -CONFIG.arenaHalf + 1 : CONFIG.cash.z - 2;
+    /** Hunters get a home pasture (spawn there so they spread out); cashier stays at the register */
+    const home = role === 'hunt' ? pickHome(workers.filter((w) => w.role === 'hunt').map((w) => w.home)) : CONFIG.pasture;
+    const sx = role === 'hunt' ? home.cx : CONFIG.cash.x - 1.5;
+    const sz = role === 'hunt' ? home.cz : CONFIG.cash.z - 2;
     holder.position.set(sx, fleet.yOffset, sz);
     idle?.start(true);
     workers.push({
@@ -2712,6 +2891,7 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       target: null,
       attackAccum: 0,
       attackTimer: 0,
+      home,
     });
   }
 
@@ -2724,16 +2904,27 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       if (w.attackTimer > 0) w.attackTimer -= dt;
       let mv = false;
       if (w.role === 'hunt') {
-        /** 目標失效就找最近的活怪 */
+        /** Target lost → find a new one. Prefer creatures in this hunter's home pasture so hunters spread out */
         if (!w.target || !w.target.alive || !w.target.active) {
           w.target = null;
           let bd = Infinity;
           for (const c of cows) {
-            if (!c.active || !c.alive) continue;
+            if (!c.active || !c.alive || c.pasture !== w.home) continue;
             const q = (c.x - w.x) ** 2 + (c.z - w.z) ** 2;
             if (q < bd) {
               bd = q;
               w.target = c;
+            }
+          }
+          /** Home pasture empty → fall back to the nearest live creature anywhere */
+          if (!w.target) {
+            for (const c of cows) {
+              if (!c.active || !c.alive) continue;
+              const q = (c.x - w.x) ** 2 + (c.z - w.z) ** 2;
+              if (q < bd) {
+                bd = q;
+                w.target = c;
+              }
             }
           }
         }
@@ -3291,6 +3482,12 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       R.push([P2.cx + P2.halfX - 1.2, -a + 2, -10, -4]); // 往牧場2 西走道
       R.push([P2.cx - P2.halfX + 0.8, P2.cx + P2.halfX - 0.8, P2.cz - P2.halfZ + 0.8, P2.cz + P2.halfZ - 0.8]); // 牧場2
     }
+    /** Extra pastures: add their corridor + interior once unlocked */
+    for (const mp of morePastures) {
+      if (!mp.unlocked) continue;
+      R.push(mp.corridor);
+      R.push(mp.rect);
+    }
     if (houseBought) {
       R.push([a - 2, y.minX + 1.2, -10, -4]); // 往房子 東走道
       R.push([y.minX + 0.8, y.maxX - 0.8, y.minZ + 0.8, y.maxZ - 0.8]); // 院子
@@ -3336,6 +3533,10 @@ export function createGame(canvas: HTMLCanvasElement, options: GameOptions = {})
       backStack.mesh.dispose();
       dynamiteStation.dispose();
       pasture2Holder.dispose();
+      morePastures.forEach((mp) => {
+        mp.station.dispose();
+        mp.holder.dispose();
+      });
       bloodDecals.dispose();
       goldFly.dispose();
       meatFly.dispose();
